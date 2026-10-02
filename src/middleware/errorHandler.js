@@ -15,5 +15,5 @@ export function errorHandler(err, _req, res, _next) {
   else if (err.type === 'entity.too.large') { status = 413; message = 'Request too large.'; }
 
   if (status >= 500) console.error(err);
-  res.status(status).json({ message, ...(env.isProd ? {} : status >= 500 ? { debug: err.message } : {}) });
+  res.status(status).json({ message, error: err.message });
 }

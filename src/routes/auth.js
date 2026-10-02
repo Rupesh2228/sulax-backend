@@ -73,27 +73,39 @@ router.post('/logout', (_req, res) => {
 });
 
 router.post('/google', asyncHandler(async (req, res) => {
-  const { credential } = req.body;
+  const { credential, clientId } = req.body;
   if (!credential) throw new AppError(400, 'Token is missing');
 
-  const ticket = await client.verifyIdToken({
-    idToken: credential,
-    audience: GOOGLE_CLIENT_ID,
-  });
-  const payload = ticket.getPayload();
+  const expectedAudiences = [
+    clientId,
+    process.env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_ID,
+  ].filter(Boolean);
+
+  let payload;
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: expectedAudiences.length === 1 ? expectedAudiences[0] : expectedAudiences,
+    });
+    payload = ticket.getPayload();
+  } catch (verifyErr) {
+    console.error('Google token verification failed:', verifyErr.message);
+    throw new AppError(401, `Google verification failed: ${verifyErr.message}`);
+  }
+
   const { email, name, sub } = payload;
+  const safeName = (name && name.trim()) || (email && email.split('@')[0]) || 'Google User';
 
   let user = await User.findOne({ email });
   let created = false;
   if (!user) {
-    // Register the user automatically
     user = await User.create({
-      name,
+      name: safeName,
       email,
-      // Create some dummy values for required fields or make them optional
       phone: 'Not provided', 
       address: 'Not provided',
-      password: await bcrypt.hash(sub + process.env.JWT_SECRET, 12), // Random password
+      password: await bcrypt.hash(sub + (process.env.JWT_SECRET || 'google_auth_secret'), 12),
     });
     created = true;
   }
