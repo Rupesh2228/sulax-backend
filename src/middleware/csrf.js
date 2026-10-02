@@ -24,8 +24,16 @@ export function csrfTokenHandler(req, res) {
 
 export function csrfProtect(req, res, next) {
   if (SAFE_METHODS.has(req.method)) return next();
-  const cookie = req.cookies?.[CSRF_COOKIE];
   const header = req.get('x-csrf-token');
+  const origin = req.get('origin');
+
+  // In cross-origin SPA setups (Vercel -> Render) where browsers block 3rd-party cookies,
+  // origin verification combined with the custom X-CSRF-Token header provides strong CSRF defence.
+  if (origin && env.isAllowedOrigin(origin) && header && typeof header === 'string' && header.length >= 16) {
+    return next();
+  }
+
+  const cookie = req.cookies?.[CSRF_COOKIE];
   const ok =
     cookie &&
     header &&

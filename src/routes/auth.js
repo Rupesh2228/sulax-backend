@@ -31,8 +31,8 @@ router.post('/register', registerLimiter, validate(registerSchema), asyncHandler
   } catch (err) {
     console.error('Customer registered, but admin notification could not be saved:', err);
   }
-  issueToken(res, user);
-  res.status(201).json({ user: user.toSafeJSON() });
+  const token = issueToken(res, user);
+  res.status(201).json({ user: user.toSafeJSON(), token });
 }));
 
 router.post('/login', loginLimiter, validate(loginSchema), asyncHandler(async (req, res) => {
@@ -63,8 +63,8 @@ router.post('/login', loginLimiter, validate(loginSchema), asyncHandler(async (r
     user.lockUntil = undefined;
     await user.save();
   }
-  issueToken(res, user);
-  res.json({ user: user.toSafeJSON() });
+  const token = issueToken(res, user);
+  res.json({ user: user.toSafeJSON(), token });
 }));
 
 router.post('/logout', (_req, res) => {
@@ -106,8 +106,8 @@ router.post('/google', asyncHandler(async (req, res) => {
     }
   }
 
-  issueToken(res, user);
-  res.json({ user: user.toSafeJSON() });
+  const token = issueToken(res, user);
+  res.json({ user: user.toSafeJSON(), token });
 }));
 
 router.get('/me', requireAuth, (req, res) => res.json({ user: req.user.toSafeJSON() }));

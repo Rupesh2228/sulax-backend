@@ -18,12 +18,19 @@ export function issueToken(res, user) {
     expiresIn: env.jwtExpiresIn,
   });
   res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: 7 * 24 * 60 * 60 * 1000 });
+  return token;
 }
 
 export const clearToken = (res) => res.clearCookie(COOKIE_NAME, cookieOptions);
 
 async function loadUser(req) {
-  const token = req.cookies?.[COOKIE_NAME];
+  let token = req.cookies?.[COOKIE_NAME];
+  if (!token) {
+    const authHeader = req.get('authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.slice(7).trim();
+    }
+  }
   if (!token) return null;
   try {
     const payload = jwt.verify(token, env.jwtSecret, { algorithms: ['HS256'] });
