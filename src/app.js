@@ -35,6 +35,7 @@ if (env.isProd) app.set('trust proxy', 1); // correct client IPs for rate limiti
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' }, // lets the SPA load /uploads images
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
   })
 );
 
@@ -79,9 +80,8 @@ app.get('/', (_req, res) => {
 // --- API ---
 app.use('/api', apiLimiter);
 app.get('/api/csrf', csrfTokenHandler);
-app.use('/api', csrfProtect);
-
 app.use('/api/auth', authRoutes);
+app.use('/api', csrfProtect);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/wishlist', wishlistRoutes);
