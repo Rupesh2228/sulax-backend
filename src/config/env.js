@@ -38,7 +38,15 @@ export const env = {
   mongoUri: process.env.MONGO_URI,
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  clientOrigins: process.env.CLIENT_ORIGIN.split(',').map((s) => s.trim()),
+  clientOrigins: (process.env.CLIENT_ORIGIN || '').split(',').map((s) => s.trim().replace(/\/+$/, '')),
+  isAllowedOrigin(origin) {
+    if (!origin) return true;
+    const clean = origin.replace(/\/+$/, '');
+    if (this.clientOrigins.includes(clean)) return true;
+    if (/^https:\/\/.*\.vercel\.app$/.test(clean)) return true;
+    if (/^https?:\/\/localhost(:\d+)?$/.test(clean)) return true;
+    return false;
+  },
   webPush: vapidValues.every(Boolean)
     ? {
         publicKey: process.env.VAPID_PUBLIC_KEY,

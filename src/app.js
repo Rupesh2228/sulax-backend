@@ -42,8 +42,7 @@ app.use(
 app.use(
   cors({
     origin(origin, cb) {
-      // Unlisted origins simply get no CORS headers, so browsers block them.
-      cb(null, !origin || env.clientOrigins.includes(origin));
+      cb(null, env.isAllowedOrigin(origin));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],

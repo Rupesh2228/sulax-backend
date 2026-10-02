@@ -30,7 +30,7 @@ export function initSocket(httpServer) {
   io = new Server(httpServer, {
     cors: {
       origin(origin, cb) {
-        cb(null, !origin || env.clientOrigins.includes(origin));
+        cb(null, env.isAllowedOrigin(origin));
       },
       credentials: true,
       methods: ['GET', 'POST'],
