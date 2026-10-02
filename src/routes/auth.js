@@ -11,7 +11,8 @@ import { AppError, asyncHandler } from '../utils/helpers.js';
 import { OAuth2Client } from 'google-auth-library';
 import { notifyAdminOfRegistration } from '../services/adminNotifications.js';
 
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '284274167517-j40sp4dqcd31qnhdom6lur8fc2gq7rk5.apps.googleusercontent.com';
+const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 
 const router = Router();
@@ -77,7 +78,7 @@ router.post('/google', asyncHandler(async (req, res) => {
 
   const ticket = await client.verifyIdToken({
     idToken: credential,
-    audience: process.env.GOOGLE_CLIENT_ID,
+    audience: GOOGLE_CLIENT_ID,
   });
   const payload = ticket.getPayload();
   const { email, name, sub } = payload;
