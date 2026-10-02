@@ -15,7 +15,7 @@ export function csrfTokenHandler(req, res) {
     res.cookie(CSRF_COOKIE, token, {
       httpOnly: false,
       secure: env.isProd,
-      sameSite: 'lax',
+      sameSite: env.isProd ? 'none' : 'lax',
       path: '/',
     });
   }

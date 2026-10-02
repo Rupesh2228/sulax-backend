@@ -8,7 +8,7 @@ export const COOKIE_NAME = 'sulax_token';
 const cookieOptions = {
   httpOnly: true,            // JS cannot read it -> XSS cannot steal the session
   secure: env.isProd,        // HTTPS only in production
-  sameSite: 'lax',           // blocks cross-site POSTs (CSRF defence in depth)
+  sameSite: env.isProd ? 'none' : 'lax', // 'none' required for cross-domain cookies (Vercel -> Render)
   path: '/',
 };
 
