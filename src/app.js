@@ -71,6 +71,11 @@ app.use(
   })
 );
 
+// --- Health check / root ---
+app.get('/', (_req, res) => {
+  res.json({ status: 'ok', message: 'Sulax API is running' });
+});
+
 // --- API ---
 app.use('/api', apiLimiter);
 app.get('/api/csrf', csrfTokenHandler);
