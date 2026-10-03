@@ -63,14 +63,17 @@ app.use(mongoSanitize());   // strips $ and . keys -> blocks NoSQL operator inje
 app.use(hpp());             // blocks HTTP parameter pollution (?a=1&a=2)
 
 // --- Uploaded product images (no directory listing, no MIME sniffing) ---
-app.use(
-  '/uploads',
-  express.static(UPLOAD_DIR, {
-    index: false,
-    dotfiles: 'deny',
-    setHeaders: (res) => res.set('X-Content-Type-Options', 'nosniff'),
-  })
-);
+if (UPLOAD_DIR && fs.existsSync(UPLOAD_DIR)) {
+  app.use(
+    '/uploads',
+    express.static(UPLOAD_DIR, {
+      index: false,
+      dotfiles: 'deny',
+      setHeaders: (res) => res.set('X-Content-Type-Options', 'nosniff'),
+    })
+  );
+}
+
 
 // --- Health check / root ---
 app.get('/', (_req, res) => {

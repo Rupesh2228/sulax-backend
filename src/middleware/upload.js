@@ -3,10 +3,12 @@ import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import { cloudinary } from '../config/cloudinary.js';
 import { AppError } from '../utils/helpers.js';
 
-// ── Kept for backward-compatibility: old code imports UPLOAD_DIR for local unlink.
-// With Cloudinary the local disk is no longer used; this export is a no-op placeholder
-// so existing imports do not break. removeFile() in admin.js uses it — see note below.
-export const UPLOAD_DIR = null;
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+export const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
+
 
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
