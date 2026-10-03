@@ -16,7 +16,12 @@ server.listen(env.port, () => {
   console.log(`[startup] Allowed origins: ${env.clientOrigins.join(', ')}`);
   if (!env.isProd) {
     console.warn('[startup] WARNING: NODE_ENV is not "production". Cookies use SameSite=Lax which');
-    console.warn('[startup]          blocks cross-origin requests. Set NODE_ENV=production on Render.');
+    console.warn('[startup]          blocks cross-origin requests when serving from a different origin.');
+    console.warn('[startup] ACTION: On Render set the following environment variables for the service:');
+    console.warn('[startup]   - NODE_ENV=production');
+    console.warn('[startup]   - MONGO_URI, JWT_SECRET (>=32 chars), CLIENT_ORIGIN (comma-separated)');
+    console.warn('[startup] If you use GitHub-connected deploys, ensure Render has access to your repository.');
+    console.warn('[startup] See server/DEPLOY_RENDER.md in the project for step-by-step deployment guidance.');
   }
 });
 
