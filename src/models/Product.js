@@ -8,7 +8,8 @@ const productSchema = new mongoose.Schema(
     price: { type: Number, required: true, min: 0 },
     oldPrice: { type: Number, min: 0, default: 0 },
     discount: { type: Number, min: 0, max: 100, default: 0 },
-    image: { type: String, default: '' }, // filename inside /uploads
+    image: { type: String, default: '' }, // Full URL or filename
+    imagePublicId: { type: String, default: '' }, // Cloudinary public_id for image deletion
     stock: { type: Number, required: true, min: 0, default: 0 },
     rating: { type: Number, min: 0, max: 5, default: 0 },
     ratingCount: { type: Number, default: 0 },

@@ -1,6 +1,4 @@
-import { Router } from 'express';
-import fs from 'fs/promises';
-import path from 'path';
+﻿import { Router } from 'express';
 import Product from '../models/Product.js';
 import Order from '../models/Order.js';
 import User from '../models/User.js';
@@ -15,7 +13,8 @@ import {
   adminUserUpdateSchema, idParam, orderItemParam, productBodySchema, seoBodySchema, seoPageParam,
   statusSchema, userRoleSchema,
 } from '../middleware/schemas.js';
-import { uploadImage, UPLOAD_DIR } from '../middleware/upload.js';
+import { uploadImage } from '../middleware/upload.js';
+import { destroyCloudinaryImage } from '../config/cloudinary.js';
 import { AppError, asyncHandler } from '../utils/helpers.js';
 import { calculateOrderTotal, restoreStock } from '../utils/orders.js';
 import { LOW_STOCK_THRESHOLD } from '../utils/inventory.js';
@@ -25,8 +24,10 @@ import AdminPushSubscription from '../models/AdminPushSubscription.js';
 const router = Router();
 router.use(requireAuth, requireAdmin);
 
-const removeFile = (name) =>
-  name ? fs.unlink(path.join(UPLOAD_DIR, path.basename(name))).catch(() => {}) : Promise.resolve();
+// Delete a product image from Cloudinary using its stored public_id.
+// Silently skips if the product has no image or if Cloudinary is unreachable.
+const removeImage = (publicId) => destroyCloudinaryImage(publicId);
+
 
 // ---- Dashboard ----
 router.get('/stats', asyncHandler(async (_req, res) => {
@@ -56,7 +57,10 @@ router.get('/products', asyncHandler(async (_req, res) => {
 
 // multer must run first for multipart bodies, then zod validates the text fields.
 router.post('/products', uploadImage, validate(productBodySchema), asyncHandler(async (req, res) => {
-  const product = await Product.create({ ...req.body, image: req.file?.filename || '' });
+  // req.file.path = Cloudinary secure_url; req.file.filename = Cloudinary public_id
+  const image = req.file?.path || '';
+  const imagePublicId = req.file?.filename || '';
+  const product = await Product.create({ ...req.body, image, imagePublicId });
   res.status(201).json({ product });
 }));
 
@@ -65,7 +69,11 @@ router.put('/products/:id', validate(idParam, 'params'), uploadImage, validate(p
     const product = await Product.findById(req.params.id);
     if (!product) throw new AppError(404, 'Product not found.');
     Object.assign(product, req.body);
-    if (req.file) { await removeFile(product.image); product.image = req.file.filename; }
+    if (req.file) {
+      await removeImage(product.imagePublicId);
+      product.image = req.file.path;
+      product.imagePublicId = req.file.filename;
+    }
     await product.save();
     res.json({ product });
   })
@@ -74,7 +82,10 @@ router.put('/products/:id', validate(idParam, 'params'), uploadImage, validate(p
 router.delete('/products/:id', validate(idParam, 'params'), asyncHandler(async (req, res) => {
   const product = await Product.findByIdAndDelete(req.params.id);
   if (!product) throw new AppError(404, 'Product not found.');
-  await Promise.all([removeFile(product.image), Wishlist.deleteMany({ product: product._id })]);
+  await Promise.all([
+    removeImage(product.imagePublicId),
+    Wishlist.deleteMany({ product: product._id }),
+  ]);
   res.json({ message: 'Product deleted.' });
 }));
 

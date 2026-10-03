@@ -54,4 +54,12 @@ export const env = {
         subject: process.env.VAPID_SUBJECT,
       }
     : null,
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
+    apiKey: process.env.CLOUDINARY_API_KEY || '',
+    apiSecret: process.env.CLOUDINARY_API_SECRET || '',
+    get configured() {
+      return !!(this.cloudName && this.apiKey && this.apiSecret);
+    },
+  },
 };
