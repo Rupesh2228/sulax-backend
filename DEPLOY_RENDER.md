@@ -17,8 +17,11 @@ Quick fix checklist
    - MONGO_URI (your MongoDB connection string)
    - JWT_SECRET (minimum 32 characters)
    - CLIENT_ORIGIN (one or more comma-separated client origins, e.g. https://sulax-frontend.vercel.app)
+   - ADMIN_EMAIL and ADMIN_PASSWORD (used by the seed command to create or synchronize the admin account)
    - Optional: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT for web push
    - In Render > Service > Environment > Add Environment Variable
+
+   If the admin login returns "Invalid email or password", the login uses the account stored in MongoDB; it does not authenticate directly against these environment variables. Run `npm run seed` against the same MongoDB database configured by the Render service to create or synchronize the admin account. For a production database, use the Render Shell if available, or run the command from a trusted machine with the production `MONGO_URI` configured securely. The seed command also inserts sample products if the database has none. Synchronizing an existing account sets its role to admin, updates its password when needed, and invalidates its existing sessions.
 
 3. Node version and build command
    - Set the Node version to at least 18 (match package.json engines if present). In Render service settings, set "Environment" -> "Runtime" -> Node version.

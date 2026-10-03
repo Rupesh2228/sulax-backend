@@ -9,19 +9,33 @@ import Product from './models/Product.js';
 await connectDB();
 
 const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
-if (!ADMIN_EMAIL || !ADMIN_PASSWORD || ADMIN_PASSWORD.length < 10) {
+if (!ADMIN_EMAIL?.trim() || !ADMIN_PASSWORD || ADMIN_PASSWORD.length < 10) {
   console.error('Set ADMIN_EMAIL and ADMIN_PASSWORD (10+ chars) in .env first. No default admin password is shipped.');
   process.exit(1);
 }
 
-if (!(await User.exists({ email: ADMIN_EMAIL.toLowerCase() }))) {
+const adminEmail = ADMIN_EMAIL.trim().toLowerCase();
+const existingAdmin = await User.findOne({ email: adminEmail }).select('+password');
+if (!existingAdmin) {
   await User.create({
-    name: 'Sulax Admin', email: ADMIN_EMAIL, phone: '9800000000', address: 'Kathmandu',
+    name: 'Sulax Admin', email: adminEmail, phone: '9800000000', address: 'Kathmandu',
     password: ADMIN_PASSWORD, role: 'admin',
   });
-  console.log(`Admin created: ${ADMIN_EMAIL}`);
+  console.log('Admin account created.');
 } else {
-  console.log('Admin already exists, skipping.');
+  const passwordMatches = await existingAdmin.comparePassword(ADMIN_PASSWORD);
+  const needsUpdate = !passwordMatches || existingAdmin.role !== 'admin';
+  if (needsUpdate) {
+    existingAdmin.password = ADMIN_PASSWORD;
+    existingAdmin.role = 'admin';
+    existingAdmin.tokenVersion += 1;
+    existingAdmin.loginAttempts = 0;
+    existingAdmin.lockUntil = undefined;
+    await existingAdmin.save();
+    console.log('Existing account synchronized as admin; prior sessions were invalidated.');
+  } else {
+    console.log('Admin account is already configured.');
+  }
 }
 
 if ((await Product.countDocuments()) === 0) {
