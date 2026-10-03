@@ -37,7 +37,9 @@ async function loadUser(req) {
     const user = await User.findById(payload.sub);
     if (!user || user.tokenVersion !== payload.tv) return null; // revoked
     return user;
-  } catch {
+  } catch (err) {
+    // Log JWT errors so they appear in Render logs — helps diagnose secret mismatches
+    console.error('[auth] JWT verification failed:', err.name, err.message);
     return null;
   }
 }

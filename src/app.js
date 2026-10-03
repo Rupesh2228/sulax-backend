@@ -90,6 +90,27 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/seo', seoRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/notifications', notificationRoutes);
+// Temporary diagnostic endpoint – shows env + incoming auth headers/cookies (no secrets exposed).
+// Remove this route once the 401 is confirmed fixed.
+app.get('/api/debug-auth', (req, res) => {
+  const authHeader = req.get('authorization') || null;
+  const cookieNames = Object.keys(req.cookies || {});
+  res.json({
+    env: {
+      nodeEnv: process.env.NODE_ENV,
+      isProd: env.isProd,
+      cookieSameSite: env.isProd ? 'none' : 'lax',
+      cookieSecure: env.isProd,
+    },
+    request: {
+      origin: req.get('origin') || null,
+      hasAuthorizationHeader: !!authHeader,
+      authHeaderPrefix: authHeader ? authHeader.slice(0, 10) + '…' : null,
+      cookieNames,          // shows which cookies arrived (not their values)
+      hasSulaxToken: cookieNames.includes('sulax_token'),
+    },
+  });
+});
 app.use('/api', notFound);
 
 // --- Optionally serve the built React app (single-origin production deploy) ---
