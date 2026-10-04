@@ -1,8 +1,11 @@
 import { Router } from 'express';
 import SEO from '../models/SEO.js';
 import { asyncHandler } from '../utils/helpers.js';
+import { validate } from '../middleware/validate.js';
+import { seoPageParam } from '../middleware/schemas.js';
 
 const router = Router();
+
 
 export const DEFAULT_SEO_CONFIGS = [
   {
@@ -200,8 +203,9 @@ router.get('/', asyncHandler(async (_req, res) => {
 }));
 
 // Public: Get specific page SEO
-router.get('/:page', asyncHandler(async (req, res) => {
+router.get('/:page', validate(seoPageParam, 'params'), asyncHandler(async (req, res) => {
   const page = req.params.page.toLowerCase();
+
   let item = await SEO.findOne({ page });
   if (!item) {
     const def = DEFAULT_SEO_CONFIGS.find((d) => d.page === page);

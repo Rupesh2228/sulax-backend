@@ -3,9 +3,9 @@ import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 import { validate } from '../middleware/validate.js';
 import {
-  registerSchema, loginSchema, profileSchema, changePasswordSchema,
+  registerSchema, loginSchema, googleAuthSchema, profileSchema, changePasswordSchema,
 } from '../middleware/schemas.js';
-import { loginLimiter, registerLimiter } from '../middleware/rateLimit.js';
+import { loginLimiter, registerLimiter, googleAuthLimiter, passwordLimiter } from '../middleware/rateLimit.js';
 import { requireAuth, issueToken, clearToken } from '../middleware/auth.js';
 import { AppError, asyncHandler } from '../utils/helpers.js';
 import { OAuth2Client } from 'google-auth-library';
@@ -72,9 +72,8 @@ router.post('/logout', (_req, res) => {
   res.json({ message: 'Logged out.' });
 });
 
-router.post('/google', asyncHandler(async (req, res) => {
+router.post('/google', googleAuthLimiter, validate(googleAuthSchema), asyncHandler(async (req, res) => {
   const { credential, clientId } = req.body;
-  if (!credential) throw new AppError(400, 'Token is missing');
 
   const expectedAudiences = [
     clientId,
@@ -91,7 +90,7 @@ router.post('/google', asyncHandler(async (req, res) => {
     payload = ticket.getPayload();
   } catch (verifyErr) {
     console.error('Google token verification failed:', verifyErr.message);
-    throw new AppError(401, `Google verification failed: ${verifyErr.message}`);
+    throw new AppError(401, 'Google verification failed. Please try again.');
   }
 
   const { email, name, sub } = payload;
@@ -131,7 +130,7 @@ router.put('/me', requireAuth, validate(profileSchema), asyncHandler(async (req,
   res.json({ user: req.user.toSafeJSON() });
 }));
 
-router.put('/me/password', requireAuth, validate(changePasswordSchema), asyncHandler(async (req, res) => {
+router.put('/me/password', requireAuth, passwordLimiter, validate(changePasswordSchema), asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id).select('+password');
   if (!(await user.comparePassword(req.body.currentPassword))) {
     throw new AppError(400, 'Current password is incorrect.');
@@ -142,5 +141,6 @@ router.put('/me/password', requireAuth, validate(changePasswordSchema), asyncHan
   issueToken(res, user);             // keep this session alive
   res.json({ message: 'Password changed successfully!' });
 }));
+
 
 export default router;

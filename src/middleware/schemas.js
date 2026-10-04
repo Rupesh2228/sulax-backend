@@ -28,6 +28,11 @@ export const registerSchema = z
   .refine((d) => d.password === d.confirmPassword, { path: ['confirmPassword'], message: 'Passwords do not match.' });
 
 export const loginSchema = z.object({ email, password: z.string().min(1).max(128) });
+export const googleAuthSchema = z.object({
+  credential: z.string().min(1, 'Token is missing').max(5000),
+  clientId: z.string().max(500).optional(),
+});
+
 
 export const profileSchema = z.object({ name, phone, address });
 export const adminUserUpdateSchema = z.object({ name, email, phone, address });
@@ -150,3 +155,14 @@ export const orderItemParam = z.object({
   id: objectId,
   index: z.coerce.number().int().nonnegative(),
 });
+
+export const adminConversationQuerySchema = z.object({
+  search: z.string().trim().max(100).optional().default(''),
+  filter: z.enum(['unread', 'all', '']).optional().default(''),
+});
+
+export const messageListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(30),
+  before: z.string().trim().max(100).optional(),
+});
+

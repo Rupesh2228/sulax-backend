@@ -5,7 +5,8 @@ import Message from '../models/Message.js';
 import User from '../models/User.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { idParam, objectId } from '../middleware/schemas.js';
+import { idParam, objectId, adminConversationQuerySchema, messageListQuerySchema } from '../middleware/schemas.js';
+import { messageLimiter } from '../middleware/rateLimit.js';
 import { AppError, asyncHandler, escapeRegex } from '../utils/helpers.js';
 import { getIO } from '../socket.js';
 import { notifyAdminOfCustomerMessage } from '../services/adminNotifications.js';
@@ -94,7 +95,7 @@ router.get('/unread-count', asyncHandler(async (req, res) => {
 }));
 
 // 3. Admin: list all customer conversations
-router.get('/admin/conversations', requireAdmin, asyncHandler(async (req, res) => {
+router.get('/admin/conversations', requireAdmin, validate(adminConversationQuerySchema, 'query'), asyncHandler(async (req, res) => {
   const { search, filter } = req.query;
   const query = {};
 
@@ -127,7 +128,7 @@ router.get('/admin/conversations', requireAdmin, asyncHandler(async (req, res) =
 }));
 
 // 4. Retrieve messages for a conversation with pagination
-router.get('/conversations/:id/messages', validate(idParam, 'params'), asyncHandler(async (req, res) => {
+router.get('/conversations/:id/messages', validate(idParam, 'params'), validate(messageListQuerySchema, 'query'), asyncHandler(async (req, res) => {
   const conv = await Conversation.findById(req.params.id);
   if (!conv) throw new AppError(404, 'Conversation not found.');
 
@@ -168,7 +169,8 @@ router.get('/conversations/:id/messages', validate(idParam, 'params'), asyncHand
 }));
 
 // 5. Send message via REST API
-router.post('/send', validate(sendMessageSchema), asyncHandler(async (req, res) => {
+router.post('/send', messageLimiter, validate(sendMessageSchema), asyncHandler(async (req, res) => {
+
   const { conversationId, text, clientTempId } = req.body;
   let conv;
 

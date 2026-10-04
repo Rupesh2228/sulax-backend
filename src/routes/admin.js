@@ -1,4 +1,4 @@
-﻿import { Router } from 'express';
+import { Router } from 'express';
 import Product from '../models/Product.js';
 import Order from '../models/Order.js';
 import User from '../models/User.js';
@@ -14,7 +14,9 @@ import {
   statusSchema, userRoleSchema,
 } from '../middleware/schemas.js';
 import { uploadImage } from '../middleware/upload.js';
+import { adminActionLimiter } from '../middleware/rateLimit.js';
 import { destroyCloudinaryImage } from '../config/cloudinary.js';
+
 import { AppError, asyncHandler } from '../utils/helpers.js';
 import { calculateOrderTotal, restoreStock } from '../utils/orders.js';
 import { LOW_STOCK_THRESHOLD } from '../utils/inventory.js';
@@ -201,7 +203,7 @@ router.get('/users', asyncHandler(async (_req, res) => {
   res.json({ users });
 }));
 
-router.put('/users/:id', validate(idParam, 'params'), validate(adminUserUpdateSchema), asyncHandler(async (req, res) => {
+router.put('/users/:id', adminActionLimiter, validate(idParam, 'params'), validate(adminUserUpdateSchema), asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id);
   if (!user) throw new AppError(404, 'User not found.');
   if (await User.exists({ email: req.body.email, _id: { $ne: user._id } })) {
@@ -238,14 +240,14 @@ async function changeUserRole(targetId, role, actingAdminId) {
   return user;
 }
 
-router.patch('/customers/:id/role', validate(idParam, 'params'), validate(userRoleSchema),
+router.patch('/customers/:id/role', adminActionLimiter, validate(idParam, 'params'), validate(userRoleSchema),
   asyncHandler(async (req, res) => {
     const user = await changeUserRole(req.params.id, req.body.role, req.user._id);
     res.json({ user: user.toSafeJSON(), message: 'User role updated.' });
   })
 );
 
-router.patch('/users/:id/role', validate(idParam, 'params'), validate(userRoleSchema),
+router.patch('/users/:id/role', adminActionLimiter, validate(idParam, 'params'), validate(userRoleSchema),
   asyncHandler(async (req, res) => {
     const user = await changeUserRole(req.params.id, req.body.role, req.user._id);
     res.json({ user: user.toSafeJSON(), message: 'User role updated.' });
@@ -253,7 +255,8 @@ router.patch('/users/:id/role', validate(idParam, 'params'), validate(userRoleSc
 );
 
 // Delete a user (admin can remove any user)
-router.delete('/users/:id', validate(idParam, 'params'), asyncHandler(async (req, res) => {
+router.delete('/users/:id', adminActionLimiter, validate(idParam, 'params'), asyncHandler(async (req, res) => {
+
   if (req.params.id === req.user._id.toString()) {
     throw new AppError(400, 'You cannot delete your own account from this screen.');
   }

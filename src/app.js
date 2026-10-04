@@ -34,8 +34,25 @@ if (env.isProd) app.set('trust proxy', 1); // correct client IPs for rate limiti
 // --- Security headers (CSP, HSTS, X-Content-Type-Options, frame-ancestors, ...) ---
 app.use(
   helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+        imgSrc: ["'self'", 'data:', 'blob:', 'https://res.cloudinary.com', 'https://images.unsplash.com'],
+        connectSrc: ["'self'", 'wss:', 'https:'],
+        frameAncestors: ["'none'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+      },
+    },
     crossOriginResourcePolicy: { policy: 'cross-origin' }, // lets the SPA load /uploads images
     crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    xContentTypeOptions: true,
+    xFrameOptions: { action: 'deny' },
   })
 );
 
@@ -43,24 +60,31 @@ app.use(
 app.use(
   cors({
     origin(origin, cb) {
-      cb(null, env.isAllowedOrigin(origin));
+      if (env.isAllowedOrigin(origin)) {
+        cb(null, true);
+      } else {
+        cb(null, false);
+      }
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'Authorization'],
+    optionsSuccessStatus: 200,
+    maxAge: 86400,
   })
 );
 
 if (!env.isProd) app.use(morgan('dev'));
 
 // --- Body parsing with small size limits ---
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: false, limit: '10kb' }));
+app.use(express.json({ limit: '50kb' }));
+app.use(express.urlencoded({ extended: false, limit: '50kb' }));
 app.use(cookieParser());
 
 // --- Injection / pollution defences ---
-app.use(mongoSanitize());   // strips $ and . keys -> blocks NoSQL operator injection
-app.use(hpp());             // blocks HTTP parameter pollution (?a=1&a=2)
+app.use(mongoSanitize({ replaceWith: '_' }));   // strips / replaces $ and . keys -> blocks NoSQL operator injection
+app.use(hpp());                                 // blocks HTTP parameter pollution (?a=1&a=2)
+
 
 // --- Uploaded product images (no directory listing, no MIME sniffing) ---
 if (UPLOAD_DIR && fs.existsSync(UPLOAD_DIR)) {
