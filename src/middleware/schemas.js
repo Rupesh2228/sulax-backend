@@ -87,6 +87,21 @@ export const productBodySchema = z.object({
   stock: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().int().min(0, 'Stock must be 0 or more.')),
 });
 
+export const bannerBodySchema = z.object({
+  alt: z.string().trim().max(200).optional().default('Sulax Shoes banner'),
+  link: z.string().trim().max(500).optional().default('').refine(
+    (value) => !value || (
+      (value.startsWith('/') && !value.startsWith('//') && !value.includes('\\') && !/[\r\n]/.test(value))
+      || /^https?:\/\/\S+$/i.test(value)
+    ),
+    'Please enter a valid internal path or HTTP(S) URL.'
+  ),
+});
+
+export const bannerStatusSchema = z.object({
+  isActive: z.boolean(),
+});
+
 const optionalHttpUrl = z.string().trim().max(500).refine(
   (value) => !value || /^https?:\/\/\S+$/i.test(value),
   'Please enter a valid HTTP or HTTPS URL.'
@@ -165,4 +180,3 @@ export const messageListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(30),
   before: z.string().trim().max(100).optional(),
 });
-

@@ -7,13 +7,14 @@ import ContactMessage from '../models/ContactMessage.js';
 import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
 import SEO from '../models/SEO.js';
+import Banner from '../models/Banner.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import {
-  adminUserUpdateSchema, idParam, orderItemParam, productBodySchema, seoBodySchema, seoPageParam,
+  adminUserUpdateSchema, bannerBodySchema, bannerStatusSchema, idParam, orderItemParam, productBodySchema, seoBodySchema, seoPageParam,
   statusSchema, userRoleSchema,
 } from '../middleware/schemas.js';
-import { uploadImage } from '../middleware/upload.js';
+import { uploadBanner, uploadImage } from '../middleware/upload.js';
 import { adminActionLimiter } from '../middleware/rateLimit.js';
 import { destroyCloudinaryImage } from '../config/cloudinary.js';
 
@@ -89,6 +90,41 @@ router.delete('/products/:id', validate(idParam, 'params'), asyncHandler(async (
     Wishlist.deleteMany({ product: product._id }),
   ]);
   res.json({ message: 'Product deleted.' });
+}));
+
+// ---- Homepage banners ----
+router.get('/banners', asyncHandler(async (_req, res) => {
+  const banners = await Banner.find().sort({ order: 1, createdAt: 1 });
+  res.json({ banners });
+}));
+
+router.post('/banners', uploadBanner, validate(bannerBodySchema), asyncHandler(async (req, res) => {
+  if (!req.file) throw new AppError(400, 'Choose a banner image to upload.');
+  const lastBanner = await Banner.findOne().sort({ order: -1 }).select('order');
+  const banner = await Banner.create({
+    ...req.body,
+    image: req.file.path,
+    imagePublicId: req.file.filename,
+    order: lastBanner ? lastBanner.order + 1 : 0,
+  });
+  res.status(201).json({ banner });
+}));
+
+router.patch('/banners/:id/status', validate(idParam, 'params'), validate(bannerStatusSchema), asyncHandler(async (req, res) => {
+  const banner = await Banner.findByIdAndUpdate(
+    req.params.id,
+    { isActive: req.body.isActive },
+    { new: true, runValidators: true }
+  );
+  if (!banner) throw new AppError(404, 'Banner not found.');
+  res.json({ banner });
+}));
+
+router.delete('/banners/:id', validate(idParam, 'params'), asyncHandler(async (req, res) => {
+  const banner = await Banner.findByIdAndDelete(req.params.id);
+  if (!banner) throw new AppError(404, 'Banner not found.');
+  await removeImage(banner.imagePublicId);
+  res.json({ message: 'Banner deleted.' });
 }));
 
 // ---- Orders ----

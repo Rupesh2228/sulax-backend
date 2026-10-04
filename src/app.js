@@ -24,6 +24,7 @@ import adminRoutes from './routes/admin.js';
 import seoRoutes from './routes/seo.js';
 import messageRoutes from './routes/messages.js';
 import notificationRoutes from './routes/notifications.js';
+import bannerRoutes from './routes/banners.js';
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -110,6 +111,7 @@ app.get('/api/csrf', csrfTokenHandler);
 app.use('/api/auth', authRoutes);
 app.use('/api', csrfProtect);
 app.use('/api/products', productRoutes);
+app.use('/api/banners', bannerRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/contact', contactRoutes);

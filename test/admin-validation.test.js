@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   adminUserUpdateSchema,
+  bannerBodySchema,
+  bannerStatusSchema,
   orderItemParam,
   pushSubscriptionRemovalSchema,
   pushSubscriptionSchema,
@@ -70,6 +72,19 @@ test('SEO schema validates URLs, robots directives, and JSON-LD', () => {
 test('SEO page parameter only accepts supported pages', () => {
   assert.equal(seoPageParam.safeParse({ page: 'home' }).success, true);
   assert.equal(seoPageParam.safeParse({ page: 'internal-admin' }).success, false);
+});
+
+test('banner schema accepts safe internal or HTTP links and rejects script URLs', () => {
+  assert.equal(bannerBodySchema.safeParse({ alt: 'Summer sale', link: '/?category=Running' }).success, true);
+  assert.equal(bannerBodySchema.safeParse({ link: 'https://sulax.example/sale' }).success, true);
+  assert.equal(bannerBodySchema.safeParse({ link: 'javascript:alert(1)' }).success, false);
+  assert.equal(bannerBodySchema.safeParse({ link: '//external.example/path' }).success, false);
+  assert.equal(bannerBodySchema.safeParse({ link: '/\\external.example/path' }).success, false);
+});
+
+test('banner status schema requires an explicit boolean', () => {
+  assert.equal(bannerStatusSchema.safeParse({ isActive: false }).success, true);
+  assert.equal(bannerStatusSchema.safeParse({ isActive: 'false' }).success, false);
 });
 
 test('push subscriptions require a trusted HTTPS push service endpoint and valid encryption keys', () => {

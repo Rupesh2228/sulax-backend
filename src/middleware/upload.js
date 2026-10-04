@@ -23,9 +23,27 @@ const storage = new CloudinaryStorage({
   },
 });
 
+const bannerStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'sulax/banners',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    transformation: [{ width: 1800, height: 700, crop: 'limit', quality: 'auto', fetch_format: 'webp' }],
+  },
+});
+
 export const uploadImage = multer({
   storage,
   limits: { fileSize: 3 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) =>
+    ALLOWED.has(file.mimetype)
+      ? cb(null, true)
+      : cb(new AppError(400, 'Only JPG, PNG or WEBP images are allowed.')),
+}).single('image');
+
+export const uploadBanner = multer({
+  storage: bannerStorage,
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
   fileFilter: (_req, file, cb) =>
     ALLOWED.has(file.mimetype)
       ? cb(null, true)
