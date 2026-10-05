@@ -1,25 +1,21 @@
+﻿import fs from 'fs';
+import path from 'path';
 import multer from 'multer';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import { cloudinary } from '../config/cloudinary.js';
 import { AppError } from '../utils/helpers.js';
 
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
-
+export const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
-// Upload directly to Cloudinary — no temp file on disk.
-const storage = new CloudinaryStorage({
+const productStorage = new CloudinaryStorage({
   cloudinary,
   params: {
     folder: 'sulax/products',
     allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
-    // Resize to a sensible product-image size and convert to webp for efficiency.
-    transformation: [{ width: 800, height: 800, crop: 'limit', quality: 'auto', fetch_format: 'webp' }],
+    transformation: [{ width: 1000, height: 1000, crop: 'limit', quality: 'auto', fetch_format: 'webp' }],
   },
 });
 
@@ -32,20 +28,21 @@ const bannerStorage = new CloudinaryStorage({
   },
 });
 
+const imageFilter = (_req, file, cb) => {
+  if (!ALLOWED.has(file.mimetype)) {
+    return cb(new AppError(400, 'Only JPG, PNG or WEBP images are allowed.'));
+  }
+  cb(null, true);
+};
+
 export const uploadImage = multer({
-  storage,
-  limits: { fileSize: 3 * 1024 * 1024, files: 1 },
-  fileFilter: (_req, file, cb) =>
-    ALLOWED.has(file.mimetype)
-      ? cb(null, true)
-      : cb(new AppError(400, 'Only JPG, PNG or WEBP images are allowed.')),
-}).single('image');
+  storage: productStorage,
+  limits: { fileSize: 3 * 1024 * 1024, files: 5 },
+  fileFilter: imageFilter,
+}).array('images', 5);
 
 export const uploadBanner = multer({
   storage: bannerStorage,
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
-  fileFilter: (_req, file, cb) =>
-    ALLOWED.has(file.mimetype)
-      ? cb(null, true)
-      : cb(new AppError(400, 'Only JPG, PNG or WEBP images are allowed.')),
+  fileFilter: imageFilter,
 }).single('image');

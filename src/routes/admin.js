@@ -60,10 +60,14 @@ router.get('/products', asyncHandler(async (_req, res) => {
 
 // multer must run first for multipart bodies, then zod validates the text fields.
 router.post('/products', uploadImage, validate(productBodySchema), asyncHandler(async (req, res) => {
-  // req.file.path = Cloudinary secure_url; req.file.filename = Cloudinary public_id
-  const image = req.file?.path || '';
-  const imagePublicId = req.file?.filename || '';
-  const product = await Product.create({ ...req.body, image, imagePublicId });
+  const imageFiles = Array.isArray(req.files) ? req.files : [];
+  const images = imageFiles.map((file) => ({ url: file.path, public_id: file.filename }));
+  const product = await Product.create({
+    ...req.body,
+    image: images[0]?.url || req.body.image || '',
+    imagePublicId: images[0]?.public_id || req.body.imagePublicId || '',
+    images: images.length ? images : (Array.isArray(req.body.images) ? req.body.images : []),
+  });
   res.status(201).json({ product });
 }));
 
@@ -71,12 +75,22 @@ router.put('/products/:id', validate(idParam, 'params'), uploadImage, validate(p
   asyncHandler(async (req, res) => {
     const product = await Product.findById(req.params.id);
     if (!product) throw new AppError(404, 'Product not found.');
-    Object.assign(product, req.body);
-    if (req.file) {
+
+    const uploadedImages = Array.isArray(req.files) ? req.files : [];
+    const nextImages = uploadedImages.length
+      ? uploadedImages.map((file) => ({ url: file.path, public_id: file.filename }))
+      : Array.isArray(req.body.images) ? req.body.images : product.images || [];
+
+    Object.assign(product, req.body, {
+      image: nextImages[0]?.url || req.body.image || product.image || '',
+      imagePublicId: nextImages[0]?.public_id || req.body.imagePublicId || product.imagePublicId || '',
+      images: nextImages,
+    });
+
+    if (uploadedImages.length && product.imagePublicId) {
       await removeImage(product.imagePublicId);
-      product.image = req.file.path;
-      product.imagePublicId = req.file.filename;
     }
+
     await product.save();
     res.json({ product });
   })
@@ -85,8 +99,10 @@ router.put('/products/:id', validate(idParam, 'params'), uploadImage, validate(p
 router.delete('/products/:id', validate(idParam, 'params'), asyncHandler(async (req, res) => {
   const product = await Product.findByIdAndDelete(req.params.id);
   if (!product) throw new AppError(404, 'Product not found.');
+
+  const cloudinaryTargets = [product.imagePublicId, ...(product.images || []).map((image) => image.public_id).filter(Boolean)];
   await Promise.all([
-    removeImage(product.imagePublicId),
+    ...cloudinaryTargets.map((publicId) => removeImage(publicId)),
     Wishlist.deleteMany({ product: product._id }),
   ]);
   res.json({ message: 'Product deleted.' });
@@ -189,8 +205,8 @@ router.delete('/orders/:id/items/:index', validate(orderItemParam, 'params'),
 
     if (shouldRestoreStock) {
       await Product.updateOne(
-        { _id: removedItem.product },
-        { $inc: { stock: removedItem.quantity } }
+        { _id: removedItem.product, 'sizes.size': removedItem.size },
+        { $inc: { 'sizes.$.stock': removedItem.quantity, stock: removedItem.quantity } }
       );
     }
 
@@ -210,8 +226,8 @@ router.delete('/orders/:id/items/:index', validate(orderItemParam, 'params'),
     } catch (err) {
       if (shouldRestoreStock) {
         await Product.updateOne(
-          { _id: removedItem.product },
-          { $inc: { stock: -removedItem.quantity } }
+          { _id: removedItem.product, 'sizes.size': removedItem.size },
+          { $inc: { 'sizes.$.stock': -removedItem.quantity, stock: -removedItem.quantity } }
         );
       }
       throw err;

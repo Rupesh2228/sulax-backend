@@ -1,4 +1,19 @@
-import { z } from 'zod';
+﻿import { z } from 'zod';
+
+const parseJsonArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
 
 export const objectId = z
   .string()
@@ -11,7 +26,6 @@ const phone = z
   .trim()
   .refine((v) => /^\+?[0-9]{7,15}$/.test(v.replace(/[\s-]/g, '')), 'Please enter a valid phone number.');
 
-// Stronger than the original (6 chars): 8+ chars, at least one letter and one number.
 const password = z
   .string()
   .min(8, 'Password must be at least 8 characters.')
@@ -32,7 +46,6 @@ export const googleAuthSchema = z.object({
   credential: z.string().min(1, 'Token is missing').max(5000),
   clientId: z.string().max(500).optional(),
 });
-
 
 export const profileSchema = z.object({ name, phone, address });
 export const adminUserUpdateSchema = z.object({ name, email, phone, address });
@@ -77,6 +90,16 @@ export const productListQuery = z.object({
   sort: z.enum(['newest', 'price_asc', 'price_desc', 'rating']).optional().default('newest'),
 });
 
+const sizeEntrySchema = z.object({
+  size: z.string().trim().min(1, 'Size is required.').max(20),
+  stock: z.preprocess((val) => val === '' || val === null || val === undefined ? 0 : val, z.coerce.number().int().min(0, 'Stock must be 0 or more.').max(100000)),
+});
+
+const imageEntrySchema = z.object({
+  url: z.string().trim().max(2000).default(''),
+  public_id: z.string().trim().max(500).default(''),
+});
+
 export const productBodySchema = z.object({
   name: z.string().trim().min(1, 'Product name is required.').max(200),
   category: z.string().trim().min(1, 'Category is required.').max(80),
@@ -84,16 +107,15 @@ export const productBodySchema = z.object({
   price: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().min(0, 'Price must be 0 or more.')),
   oldPrice: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().min(0).optional().default(0)),
   discount: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().int().min(0).max(100).optional().default(0)),
-  stock: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().int().min(0, 'Stock must be 0 or more.')),
+  stock: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().int().min(0, 'Stock must be 0 or more.').optional().default(0)),
+  sizes: z.preprocess(parseJsonArray, z.array(sizeEntrySchema).max(12).default([])),
+  images: z.preprocess(parseJsonArray, z.array(imageEntrySchema).max(5).default([])),
 });
 
 export const bannerBodySchema = z.object({
   alt: z.string().trim().max(200).optional().default('Sulax Shoes banner'),
   link: z.string().trim().max(500).optional().default('').refine(
-    (value) => !value || (
-      (value.startsWith('/') && !value.startsWith('//') && !value.includes('\\') && !/[\r\n]/.test(value))
-      || /^https?:\/\/\S+$/i.test(value)
-    ),
+    (value) => !value || ((value.startsWith('/') && !value.startsWith('//') && !value.includes('\\') && !/[\r\n]/.test(value)) || /^https?:\/\/\S+$/i.test(value)),
     'Please enter a valid internal path or HTTP(S) URL.'
   ),
 });

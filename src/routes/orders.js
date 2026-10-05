@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -16,12 +16,14 @@ const money = (n) => Math.round(n * 100) / 100;
 
 router.use(requireAuth);
 
-// Place order. The client sends ONLY product ids / size / qty -> prices, names and
-// totals are always taken from the database, never from the browser.
+const getSizeStock = (product, size) => {
+  const entry = (product?.sizes || []).find((item) => String(item.size) === String(size));
+  return entry ? Math.max(0, Number(entry.stock) || 0) : 0;
+};
+
 router.post('/', orderLimiter, validate(orderSchema), asyncHandler(async (req, res) => {
   const { name, phone, address, payment, items } = req.body;
 
-  // merge duplicate product+size lines
   const merged = new Map();
   for (const it of items) {
     const key = `${it.productId}:${it.size}`;
@@ -29,42 +31,42 @@ router.post('/', orderLimiter, validate(orderSchema), asyncHandler(async (req, r
   }
   const lines = [...merged.values()];
 
-  const perProduct = new Map();
-  for (const l of lines) perProduct.set(l.productId, (perProduct.get(l.productId) || 0) + l.quantity);
-
-  const products = await Product.find({ _id: { $in: [...perProduct.keys()] } });
+  const products = await Product.find({ _id: { $in: [...new Set(lines.map((line) => line.productId))] } });
   const byId = new Map(products.map((p) => [p.id, p]));
 
-  for (const [pid, qty] of perProduct) {
-    const p = byId.get(pid);
-    if (!p) throw new AppError(400, 'Product not found.');
-    if (p.stock < qty) throw new AppError(409, `Sorry! ${p.name} has only ${p.stock} item(s) available.`);
+  for (const line of lines) {
+    const product = byId.get(line.productId);
+    if (!product) throw new AppError(400, 'Product not found.');
+    const available = getSizeStock(product, line.size);
+    if (available < line.quantity) {
+      throw new AppError(409, `Sorry! ${product.name} only has ${available} item(s) left for size ${line.size}.`);
+    }
   }
 
-  // Atomic stock reservation (stock >= qty is checked inside the update itself, so two
-  // simultaneous buyers can never oversell). Rolled back if anything fails.
   const reserved = [];
   const stockAfterReservation = new Map();
   let order;
+
   try {
-    for (const [pid, qty] of perProduct) {
+    for (const line of lines) {
+      const product = byId.get(line.productId);
       const updatedProduct = await Product.findOneAndUpdate(
-        { _id: pid, stock: { $gte: qty } },
-        { $inc: { stock: -qty } },
+        { _id: line.productId, 'sizes.size': line.size, 'sizes.$.stock': { $gte: line.quantity } },
+        { $inc: { 'sizes.$.stock': -line.quantity, stock: -line.quantity } },
         { new: true }
       );
       if (!updatedProduct) {
-        throw new AppError(409, `${byId.get(pid).name} is no longer available in that quantity.`);
+        throw new AppError(409, `${product.name} is no longer available in size ${line.size}.`);
       }
-      reserved.push([pid, qty]);
-      stockAfterReservation.set(pid, updatedProduct.stock);
+      reserved.push([line.productId, line.size, line.quantity]);
+      stockAfterReservation.set(`${line.productId}:${line.size}`, getSizeStock(updatedProduct, line.size));
     }
 
-    const orderItems = lines.map((l) => {
-      const p = byId.get(l.productId);
-      return { product: p._id, productName: p.name, price: p.price, size: l.size, quantity: l.quantity };
+    const orderItems = lines.map((line) => {
+      const product = byId.get(line.productId);
+      return { product: product._id, productName: product.name, price: product.price, size: line.size, quantity: line.quantity };
     });
-    const itemsTotal = orderItems.reduce((s, i) => s + i.price * i.quantity, 0);
+    const itemsTotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
     order = await Order.create({
       user: req.user._id,
@@ -77,7 +79,14 @@ router.post('/', orderLimiter, validate(orderSchema), asyncHandler(async (req, r
       totalAmount: money(itemsTotal + DELIVERY_CHARGE),
     });
   } catch (err) {
-    await Promise.all(reserved.map(([pid, qty]) => Product.updateOne({ _id: pid }, { $inc: { stock: qty } })));
+    await Promise.all(
+      reserved.map(async ([productId, size, quantity]) => {
+        await Product.updateOne(
+          { _id: productId, 'sizes.size': size },
+          { $inc: { 'sizes.$.stock': quantity, stock: quantity } }
+        );
+      })
+    );
     throw err;
   }
 
@@ -86,18 +95,20 @@ router.post('/', orderLimiter, validate(orderSchema), asyncHandler(async (req, r
   } catch (err) {
     console.error('Order was saved, but admin notification could not be saved:', err);
   }
-  for (const [productId, quantity] of perProduct) {
-    const product = byId.get(productId);
-    const remainingStock = stockAfterReservation.get(productId);
-    const previousStock = remainingStock + quantity;
+
+  for (const line of lines) {
+    const product = byId.get(line.productId);
+    const remainingStock = stockAfterReservation.get(`${line.productId}:${line.size}`) || 0;
+    const previousStock = remainingStock + line.quantity;
     if (previousStock > LOW_STOCK_THRESHOLD && remainingStock <= LOW_STOCK_THRESHOLD) {
       try {
         await notifyAdminOfLowStock(order, product, remainingStock);
       } catch (err) {
-        console.error(`Order was saved, but low-stock notification for product ${productId} could not be saved:`, err);
+        console.error(`Order was saved, but low-stock notification for product ${line.productId} could not be saved:`, err);
       }
     }
   }
+
   res.status(201).json({ order });
 }));
 
@@ -106,7 +117,6 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json({ orders });
 }));
 
-// IDOR protection: the query always includes the logged-in user's id.
 router.get('/:id', validate(idParam, 'params'), asyncHandler(async (req, res) => {
   const order = await Order.findOne({ _id: req.params.id, user: req.user._id });
   if (!order) throw new AppError(404, 'Order not found.');
@@ -114,7 +124,6 @@ router.get('/:id', validate(idParam, 'params'), asyncHandler(async (req, res) =>
 }));
 
 router.post('/:id/cancel', validate(idParam, 'params'), asyncHandler(async (req, res) => {
-  // Only pending orders can be cancelled; the status flip prevents double stock restoration.
   const order = await Order.findOneAndUpdate(
     { _id: req.params.id, user: req.user._id, status: 'Pending' },
     { status: 'Cancelled' },
