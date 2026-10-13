@@ -5,6 +5,7 @@ import {
   bannerBodySchema,
   bannerStatusSchema,
   orderItemParam,
+  orderSchema,
   productBodySchema,
   pushSubscriptionRemovalSchema,
   pushSubscriptionSchema,
@@ -46,6 +47,13 @@ test('product schema requires unique shoe sizes with prices and stock', () => {
     ]),
   };
   assert.equal(productBodySchema.safeParse(product).success, true);
+  assert.equal(productBodySchema.safeParse({
+    ...product,
+    sizes: JSON.stringify([
+      { size: ' EU 42 ', price: 2100, stock: 3 },
+      { size: 'UK 8', price: 2200, stock: 2 },
+    ]),
+  }).success, true);
   assert.equal(productBodySchema.safeParse({ ...product, sizes: '[]' }).success, false);
   assert.equal(productBodySchema.safeParse({
     ...product,
@@ -56,8 +64,27 @@ test('product schema requires unique shoe sizes with prices and stock', () => {
   }).success, false);
   assert.equal(productBodySchema.safeParse({
     ...product,
+    sizes: JSON.stringify([
+      { size: 'EU 42', price: 2100, stock: 3 },
+      { size: ' eu 42 ', price: 2200, stock: 2 },
+    ]),
+  }).success, false);
+  assert.equal(productBodySchema.safeParse({
+    ...product,
     sizes: JSON.stringify([{ size: '7', stock: 3 }]),
   }).success, false);
+});
+
+test('order schema accepts a custom shoe size label', () => {
+  const result = orderSchema.safeParse({
+    name: 'Customer Example',
+    phone: '+977 9812345678',
+    address: 'Kathmandu',
+    payment: 'Cash on Delivery',
+    items: [{ productId: '507f1f77bcf86cd799439011', size: ' EU 42 ', quantity: 1 }],
+  });
+  assert.equal(result.success, true);
+  assert.equal(result.data.items[0].size, 'EU 42');
 });
 
 test('admin order-item route validates the order ID and nonnegative item index', () => {
