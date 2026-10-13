@@ -5,6 +5,7 @@ import {
   bannerBodySchema,
   bannerStatusSchema,
   orderItemParam,
+  productBodySchema,
   pushSubscriptionRemovalSchema,
   pushSubscriptionSchema,
   seoBodySchema,
@@ -32,6 +33,31 @@ test('admin user update schema rejects invalid email and phone values', () => {
 test('admin role schema accepts only supported roles', () => {
   assert.equal(userRoleSchema.safeParse({ role: 'admin' }).success, true);
   assert.equal(userRoleSchema.safeParse({ role: 'owner' }).success, false);
+});
+
+test('product schema requires unique shoe sizes with prices and stock', () => {
+  const product = {
+    name: 'Runner',
+    category: 'Running',
+    price: 2000,
+    sizes: JSON.stringify([
+      { size: '7', price: 2100, stock: 3 },
+      { size: '8', price: 2200, stock: 2 },
+    ]),
+  };
+  assert.equal(productBodySchema.safeParse(product).success, true);
+  assert.equal(productBodySchema.safeParse({ ...product, sizes: '[]' }).success, false);
+  assert.equal(productBodySchema.safeParse({
+    ...product,
+    sizes: JSON.stringify([
+      { size: '7', price: 2100, stock: 3 },
+      { size: '7', price: 2200, stock: 2 },
+    ]),
+  }).success, false);
+  assert.equal(productBodySchema.safeParse({
+    ...product,
+    sizes: JSON.stringify([{ size: '7', stock: 3 }]),
+  }).success, false);
 });
 
 test('admin order-item route validates the order ID and nonnegative item index', () => {

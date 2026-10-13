@@ -6,7 +6,7 @@ import { validate } from '../middleware/validate.js';
 import { idParam, orderSchema } from '../middleware/schemas.js';
 import { orderLimiter } from '../middleware/rateLimit.js';
 import { AppError, asyncHandler } from '../utils/helpers.js';
-import { restoreStock } from '../utils/orders.js';
+import { getSizePrice, restoreStock } from '../utils/orders.js';
 import { LOW_STOCK_THRESHOLD } from '../utils/inventory.js';
 import { notifyAdminOfLowStock, notifyAdminOfOrder } from '../services/adminNotifications.js';
 
@@ -17,6 +17,7 @@ const money = (n) => Math.round(n * 100) / 100;
 router.use(requireAuth);
 
 const getSizeStock = (product, size) => {
+  if (!product?.sizes?.length) return Math.max(0, Number(product?.stock) || 0);
   const entry = (product?.sizes || []).find((item) => String(item.size) === String(size));
   return entry ? Math.max(0, Number(entry.stock) || 0) : 0;
 };
@@ -50,11 +51,18 @@ router.post('/', orderLimiter, validate(orderSchema), asyncHandler(async (req, r
   try {
     for (const line of lines) {
       const product = byId.get(line.productId);
-      const updatedProduct = await Product.findOneAndUpdate(
-        { _id: line.productId, 'sizes.size': line.size, 'sizes.$.stock': { $gte: line.quantity } },
-        { $inc: { 'sizes.$.stock': -line.quantity, stock: -line.quantity } },
-        { new: true }
-      );
+      const hasSizeInventory = product.sizes?.length > 0;
+      const updatedProduct = hasSizeInventory
+        ? await Product.findOneAndUpdate(
+          { _id: line.productId, 'sizes.size': line.size, 'sizes.$.stock': { $gte: line.quantity } },
+          { $inc: { 'sizes.$.stock': -line.quantity, stock: -line.quantity } },
+          { new: true }
+        )
+        : await Product.findOneAndUpdate(
+          { _id: line.productId, sizes: { $size: 0 }, stock: { $gte: line.quantity } },
+          { $inc: { stock: -line.quantity } },
+          { new: true }
+        );
       if (!updatedProduct) {
         throw new AppError(409, `${product.name} is no longer available in size ${line.size}.`);
       }
@@ -64,7 +72,7 @@ router.post('/', orderLimiter, validate(orderSchema), asyncHandler(async (req, r
 
     const orderItems = lines.map((line) => {
       const product = byId.get(line.productId);
-      return { product: product._id, productName: product.name, price: product.price, size: line.size, quantity: line.quantity };
+      return { product: product._id, productName: product.name, price: getSizePrice(product, line.size), size: line.size, quantity: line.quantity };
     });
     const itemsTotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
@@ -81,10 +89,15 @@ router.post('/', orderLimiter, validate(orderSchema), asyncHandler(async (req, r
   } catch (err) {
     await Promise.all(
       reserved.map(async ([productId, size, quantity]) => {
-        await Product.updateOne(
-          { _id: productId, 'sizes.size': size },
-          { $inc: { 'sizes.$.stock': quantity, stock: quantity } }
-        );
+        const product = byId.get(productId);
+        if (product?.sizes?.length) {
+          await Product.updateOne(
+            { _id: productId, 'sizes.size': size },
+            { $inc: { 'sizes.$.stock': quantity, stock: quantity } }
+          );
+        } else {
+          await Product.updateOne({ _id: productId, sizes: { $size: 0 } }, { $inc: { stock: quantity } });
+        }
       })
     );
     throw err;

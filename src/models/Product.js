@@ -11,6 +11,7 @@ const imageEntrySchema = new mongoose.Schema(
 const sizeEntrySchema = new mongoose.Schema(
   {
     size: { type: String, required: true, trim: true },
+    price: { type: Number, min: 0 },
     stock: { type: Number, required: true, min: 0, default: 0 },
   },
   { _id: false }

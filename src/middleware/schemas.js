@@ -91,7 +91,8 @@ export const productListQuery = z.object({
 });
 
 const sizeEntrySchema = z.object({
-  size: z.string().trim().min(1, 'Size is required.').max(20),
+  size: z.enum(['6', '7', '8', '9', '10', '11']),
+  price: z.preprocess((val) => val === '' || val === null || val === undefined ? Number.NaN : val, z.coerce.number().finite().min(0, 'Price must be 0 or more.')),
   stock: z.preprocess((val) => val === '' || val === null || val === undefined ? 0 : val, z.coerce.number().int().min(0, 'Stock must be 0 or more.').max(100000)),
 });
 
@@ -108,9 +109,12 @@ export const productBodySchema = z.object({
   oldPrice: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().min(0).optional().default(0)),
   discount: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().int().min(0).max(100).optional().default(0)),
   stock: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().int().min(0, 'Stock must be 0 or more.').optional().default(0)),
-  sizes: z.preprocess(parseJsonArray, z.array(sizeEntrySchema).max(12).default([])),
+  sizes: z.preprocess(parseJsonArray, z.array(sizeEntrySchema).min(1, 'Add at least one shoe size.').max(12)),
   images: z.preprocess(parseJsonArray, z.array(imageEntrySchema).max(5).default([])),
-});
+}).refine(
+  (product) => new Set(product.sizes.map((entry) => entry.size)).size === product.sizes.length,
+  { path: ['sizes'], message: 'Each shoe size can only be added once.' }
+);
 
 export const bannerBodySchema = z.object({
   alt: z.string().trim().max(200).optional().default('Sulax Shoes banner'),
