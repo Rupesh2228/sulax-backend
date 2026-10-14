@@ -101,19 +101,44 @@ const imageEntrySchema = z.object({
   public_id: z.string().trim().max(500).default(''),
 });
 
+const attributeEntrySchema = z.object({
+  key: z.string().trim().min(1, 'Attribute name is required.').max(80),
+  value: z.string().trim().max(500).default(''),
+});
+
+const variantEntrySchema = z.object({
+  name: z.string().trim().min(1, 'Variant name is required.').max(80).default(''),
+  value: z.string().trim().min(1, 'Variant value is required.').max(200).default(''),
+  sku: z.string().trim().max(80).optional().default(''),
+  price: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().min(0, 'Price must be 0 or more.').optional().default(0)),
+  stock: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().int().min(0, 'Stock must be 0 or more.').optional().default(0)),
+});
+
 export const productBodySchema = z.object({
   name: z.string().trim().min(1, 'Product name is required.').max(200),
+  slug: z.string().trim().max(160).optional().default(''),
+  sku: z.string().trim().max(80).optional().default(''),
   category: z.string().trim().min(1, 'Category is required.').max(80),
+  subcategory: z.string().trim().max(80).optional().default(''),
+  shortDescription: z.string().trim().max(600).optional().default(''),
   description: z.string().trim().max(5000).optional().default(''),
+  brand: z.string().trim().max(80).optional().default(''),
+  status: z.enum(['draft', 'active', 'archived']).optional().default('active'),
+  featured: z.preprocess((value) => value === 'true' || value === true, z.boolean()).optional().default(false),
+  tags: z.preprocess(parseJsonArray, z.array(z.string().trim().max(40)).max(20).default([])),
   price: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().min(0, 'Price must be 0 or more.')),
   oldPrice: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().min(0).optional().default(0)),
   discount: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().int().min(0).max(100).optional().default(0)),
   stock: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().int().min(0, 'Stock must be 0 or more.').optional().default(0)),
-  sizes: z.preprocess(parseJsonArray, z.array(sizeEntrySchema).min(1, 'Add at least one shoe size.').max(30)),
+  image: z.string().trim().max(2000).optional().default(''),
+  imagePublicId: z.string().trim().max(500).optional().default(''),
+  sizes: z.preprocess(parseJsonArray, z.array(sizeEntrySchema).min(1, 'Add at least one size.').max(30)),
   images: z.preprocess(parseJsonArray, z.array(imageEntrySchema).max(5).default([])),
+  attributes: z.preprocess(parseJsonArray, z.array(attributeEntrySchema).max(20).default([])),
+  variants: z.preprocess(parseJsonArray, z.array(variantEntrySchema).max(20).default([])),
 }).refine(
   (product) => new Set(product.sizes.map((entry) => entry.size.toLocaleLowerCase())).size === product.sizes.length,
-  { path: ['sizes'], message: 'Each shoe size can only be added once.' }
+  { path: ['sizes'], message: 'Each size can only be added once.' }
 );
 
 export const bannerBodySchema = z.object({

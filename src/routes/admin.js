@@ -53,21 +53,54 @@ router.get('/stats', asyncHandler(async (_req, res) => {
 }));
 
 // ---- Products ----
+const slugify = (value = '') => String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 120) || 'product';
+
+const uploadedProductImages = (req) => (Array.isArray(req.files) ? req.files : []).map((file) => ({
+  url: file.path || file.secure_url || '',
+  public_id: file.filename || file.public_id || '',
+})).filter((entry) => entry.url && entry.public_id);
+
+const resolveProductImageSet = (req, fallback = []) => {
+  const uploaded = uploadedProductImages(req);
+  if (uploaded.length) return uploaded;
+
+  const bodyImages = Array.isArray(req.body.images) ? req.body.images : [];
+  if (bodyImages.length) return bodyImages;
+
+  const legacyImage = req.body.image ? [{ url: req.body.image, public_id: req.body.imagePublicId || '' }] : [];
+  return legacyImage.length ? legacyImage : fallback;
+};
+
+const ensureUniqueProductSlug = async (slugInput, existingId = null) => {
+  const base = slugify(slugInput || 'product');
+  let candidate = base;
+  let suffix = 1;
+  while (await Product.exists({ slug: candidate, ...(existingId ? { _id: { $ne: existingId } } : {}) })) {
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
+};
+
 router.get('/products', asyncHandler(async (_req, res) => {
   const products = await Product.find().sort({ createdAt: -1 });
   res.json({ products });
 }));
 
-// multer must run first for multipart bodies, then zod validates the text fields.
 router.post('/products', uploadImage, validate(productBodySchema), asyncHandler(async (req, res) => {
-  const imageFiles = Array.isArray(req.files) ? req.files : [];
-  const images = imageFiles.map((file) => ({ url: file.path, public_id: file.filename }));
+  const nextImages = resolveProductImageSet(req);
+  const slug = await ensureUniqueProductSlug(req.body.slug || req.body.name || 'product');
+
   const product = await Product.create({
     ...req.body,
-    image: images[0]?.url || req.body.image || '',
-    imagePublicId: images[0]?.public_id || req.body.imagePublicId || '',
-    images: images.length ? images : (Array.isArray(req.body.images) ? req.body.images : []),
+    slug,
+    featured: req.body.featured === true || req.body.featured === 'true',
+    status: req.body.status || 'active',
+    image: nextImages[0]?.url || req.body.image || '',
+    imagePublicId: nextImages[0]?.public_id || req.body.imagePublicId || '',
+    images: nextImages,
   });
+
   res.status(201).json({ product });
 }));
 
@@ -76,19 +109,25 @@ router.put('/products/:id', validate(idParam, 'params'), uploadImage, validate(p
     const product = await Product.findById(req.params.id);
     if (!product) throw new AppError(404, 'Product not found.');
 
-    const uploadedImages = Array.isArray(req.files) ? req.files : [];
+    const uploadedImages = uploadedProductImages(req);
     const nextImages = uploadedImages.length
-      ? uploadedImages.map((file) => ({ url: file.path, public_id: file.filename }))
-      : Array.isArray(req.body.images) ? req.body.images : product.images || [];
-
-    Object.assign(product, req.body, {
+      ? uploadedImages
+      : resolveProductImageSet(req, product.images || []);
+    const previousImagePublicId = product.imagePublicId;
+    const nextSlug = await ensureUniqueProductSlug(req.body.slug || product.slug || product.name || 'product', product._id);
+    const productPayload = {
+      ...req.body,
+      slug: nextSlug,
+      featured: req.body.featured === true || req.body.featured === 'true',
+      status: req.body.status || product.status || 'active',
       image: nextImages[0]?.url || req.body.image || product.image || '',
       imagePublicId: nextImages[0]?.public_id || req.body.imagePublicId || product.imagePublicId || '',
       images: nextImages,
-    });
+    };
 
-    if (uploadedImages.length && product.imagePublicId) {
-      await removeImage(product.imagePublicId);
+    Object.assign(product, productPayload);
+    if (uploadedImages.length && previousImagePublicId) {
+      await removeImage(previousImagePublicId);
     }
 
     await product.save();
