@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateOrderTotal, getSizePrice } from '../src/utils/orders.js';
+import { calculateOrderTotal, getSizePrice, getSizeStock } from '../src/utils/orders.js';
 
 test('order total recalculates remaining item quantities plus delivery', () => {
   const total = calculateOrderTotal([
@@ -25,4 +25,11 @@ test('size pricing uses the selected size price and falls back for legacy produc
     sizes: [{ size: '7', stock: 2 }],
   }, '7'), 1800);
   assert.equal(getSizePrice({ price: 1800, sizes: [] }, '7'), 1800);
+});
+
+test('shared-stock size options accept only admin-entered size labels', () => {
+  const product = { sizeOptions: 'M, L, XL', stock: 5, sizes: [] };
+  assert.equal(getSizeStock(product, 'M'), 5);
+  assert.equal(getSizeStock(product, 'XL'), 5);
+  assert.equal(getSizeStock(product, 'XXL'), 0);
 });

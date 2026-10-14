@@ -15,6 +15,15 @@ const parseJsonArray = (value) => {
   return [];
 };
 
+const parseJsonArrayStrict = (value) => {
+  if (Array.isArray(value) || typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+};
+
 export const objectId = z
   .string()
   .regex(/^[a-f\d]{24}$/i, 'Invalid ID.')
@@ -114,32 +123,82 @@ const variantEntrySchema = z.object({
   stock: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().int().min(0, 'Stock must be 0 or more.').optional().default(0)),
 });
 
+const imageOrderEntrySchema = z.object({
+  type: z.enum(['existing', 'upload']),
+  index: z.coerce.number().int().min(0).max(2),
+});
+
+const productCategoryKind = (category) => {
+  const normalized = String(category || '').toLocaleLowerCase().replace(/[^a-z]/g, '');
+  if (normalized === 'dolls') return 'dolls';
+  if (normalized.includes('tshirt')) return 'tshirts';
+  if (normalized.includes('bagpack') || normalized.includes('backpack')) return 'bags';
+  if (normalized.includes('electronic') && normalized.includes('accessor')) return 'electronics';
+  if (normalized.includes('sari') || normalized.includes('saree') || normalized.includes('kurtha') || normalized.includes('kurta')) return 'clothing';
+  return 'standard';
+};
+
+const getTypedSizeOptions = (value) => String(value || '').split(',').map((size) => size.trim()).filter(Boolean);
+
 export const productBodySchema = z.object({
   name: z.string().trim().min(1, 'Product name is required.').max(200),
   slug: z.string().trim().max(160).optional().default(''),
   sku: z.string().trim().max(80).optional().default(''),
   category: z.string().trim().min(1, 'Category is required.').max(80),
   subcategory: z.string().trim().max(80).optional().default(''),
+  bagType: z.string().trim().max(500).optional().default(''),
+  sizeOptions: z.string().trim().max(500).optional().default(''),
   shortDescription: z.string().trim().max(600).optional().default(''),
   description: z.string().trim().max(5000).optional().default(''),
   brand: z.string().trim().max(80).optional().default(''),
   status: z.enum(['draft', 'active', 'archived']).optional().default('active'),
   featured: z.preprocess((value) => value === 'true' || value === true, z.boolean()).optional().default(false),
   tags: z.preprocess(parseJsonArray, z.array(z.string().trim().max(40)).max(20).default([])),
-  price: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().min(0, 'Price must be 0 or more.')),
+  price: z.preprocess((val) => (val === '' || val === null || val === undefined ? Number.NaN : val), z.coerce.number().finite().min(0, 'Price must be 0 or more.')),
   oldPrice: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().min(0).optional().default(0)),
   discount: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().int().min(0).max(100).optional().default(0)),
   stock: z.preprocess((val) => (val === '' || val === null || val === undefined ? 0 : val), z.coerce.number().int().min(0, 'Stock must be 0 or more.').optional().default(0)),
   image: z.string().trim().max(2000).optional().default(''),
   imagePublicId: z.string().trim().max(500).optional().default(''),
-  sizes: z.preprocess(parseJsonArray, z.array(sizeEntrySchema).min(1, 'Add at least one size.').max(30)),
-  images: z.preprocess(parseJsonArray, z.array(imageEntrySchema).max(5).default([])),
+  sizes: z.preprocess(parseJsonArray, z.array(sizeEntrySchema).max(30).default([])),
+  images: z.preprocess(parseJsonArray, z.array(imageEntrySchema).max(3).default([])),
+  imageOrder: z.preprocess(
+    parseJsonArrayStrict,
+    z.array(imageOrderEntrySchema).max(3).optional()
+  ),
   attributes: z.preprocess(parseJsonArray, z.array(attributeEntrySchema).max(20).default([])),
   variants: z.preprocess(parseJsonArray, z.array(variantEntrySchema).max(20).default([])),
 }).refine(
   (product) => new Set(product.sizes.map((entry) => entry.size.toLocaleLowerCase())).size === product.sizes.length,
   { path: ['sizes'], message: 'Each size can only be added once.' }
-);
+).superRefine((product, context) => {
+  const category = productCategoryKind(product.category);
+  const hasSharedStock = ['dolls', 'tshirts', 'bags', 'electronics', 'clothing'].includes(category);
+  if (category !== 'standard' && !product.description.trim()) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['description'], message: 'Product description is required.' });
+  }
+  if (category === 'tshirts' || category === 'clothing') {
+    const options = getTypedSizeOptions(product.sizeOptions);
+    if (!options.length) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['sizeOptions'], message: 'Enter at least one size.' });
+    }
+    if (options.some((size) => size.length > 20)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['sizeOptions'], message: 'Each size must be 20 characters or fewer.' });
+    }
+    if (new Set(options.map((size) => size.toLocaleLowerCase())).size !== options.length) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['sizeOptions'], message: 'Each size can only be entered once.' });
+    }
+  }
+  if (!hasSharedStock && product.sizes.length === 0) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['sizes'], message: 'Add at least one size.' });
+  }
+  if (product.imageOrder) {
+    const keys = product.imageOrder.map((entry) => `${entry.type}:${entry.index}`);
+    if (new Set(keys).size !== keys.length) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['imageOrder'], message: 'Image references must be unique.' });
+    }
+  }
+});
 
 export const bannerBodySchema = z.object({
   alt: z.string().trim().max(200).optional().default('Sulax Shoes banner'),

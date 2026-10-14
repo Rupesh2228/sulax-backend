@@ -60,6 +60,8 @@ const productSchema = new mongoose.Schema(
     sku: { type: String, trim: true, uppercase: true, maxlength: 80 },
     category: { type: String, required: true, trim: true, maxlength: 80, index: true },
     subcategory: { type: String, trim: true, maxlength: 80, default: '' },
+    bagType: { type: String, trim: true, maxlength: 500, default: '' },
+    sizeOptions: { type: String, trim: true, maxlength: 500, default: '' },
     shortDescription: { type: String, default: '', maxlength: 600 },
     description: { type: String, default: '', maxlength: 5000 },
     brand: { type: String, default: '', trim: true, maxlength: 80 },

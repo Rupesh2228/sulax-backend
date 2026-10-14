@@ -6,7 +6,7 @@ import { validate } from '../middleware/validate.js';
 import { idParam, orderSchema } from '../middleware/schemas.js';
 import { orderLimiter } from '../middleware/rateLimit.js';
 import { AppError, asyncHandler } from '../utils/helpers.js';
-import { getSizePrice, restoreStock } from '../utils/orders.js';
+import { getSizePrice, getSizeStock, restoreStock } from '../utils/orders.js';
 import { LOW_STOCK_THRESHOLD } from '../utils/inventory.js';
 import { notifyAdminOfLowStock, notifyAdminOfOrder } from '../services/adminNotifications.js';
 
@@ -15,12 +15,6 @@ const DELIVERY_CHARGE = 100;
 const money = (n) => Math.round(n * 100) / 100;
 
 router.use(requireAuth);
-
-const getSizeStock = (product, size) => {
-  if (!product?.sizes?.length) return Math.max(0, Number(product?.stock) || 0);
-  const entry = (product?.sizes || []).find((item) => String(item.size) === String(size));
-  return entry ? Math.max(0, Number(entry.stock) || 0) : 0;
-};
 
 router.post('/', orderLimiter, validate(orderSchema), asyncHandler(async (req, res) => {
   const { name, phone, address, payment, items } = req.body;

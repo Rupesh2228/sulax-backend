@@ -71,6 +71,40 @@ const resolveProductImageSet = (req, fallback = []) => {
   return legacyImage.length ? legacyImage : fallback;
 };
 
+const getProductImages = (product) => (
+  product.images?.length
+    ? product.images.map((image) => ({ url: image.url, public_id: image.public_id || '' }))
+    : product.image
+      ? [{ url: product.image, public_id: product.imagePublicId || '' }]
+      : []
+);
+
+const resolveOrderedProductImages = async (req, existingImages = []) => {
+  const uploads = uploadedProductImages(req);
+  try {
+    const usedUploads = new Set();
+    const images = req.body.imageOrder.map(({ type, index }) => {
+      if (type === 'upload') {
+        const uploaded = uploads[index];
+        if (!uploaded) throw new AppError(400, 'An uploaded product image is missing.');
+        usedUploads.add(index);
+        return uploaded;
+      }
+      const existing = existingImages[index];
+      if (!existing) throw new AppError(400, 'A selected existing product image is no longer available.');
+      return existing;
+    });
+
+    if (usedUploads.size !== uploads.length) {
+      throw new AppError(400, 'Every uploaded product image must be included in the image list.');
+    }
+    return images;
+  } catch (error) {
+    await Promise.all(uploads.map((image) => removeImage(image.public_id)));
+    throw error;
+  }
+};
+
 const ensureUniqueProductSlug = async (slugInput, existingId = null) => {
   const base = slugify(slugInput || 'product');
   let candidate = base;
@@ -88,18 +122,27 @@ router.get('/products', asyncHandler(async (_req, res) => {
 }));
 
 router.post('/products', uploadImage, validate(productBodySchema), asyncHandler(async (req, res) => {
-  const nextImages = resolveProductImageSet(req);
+  const nextImages = Array.isArray(req.body.imageOrder)
+    ? await resolveOrderedProductImages(req)
+    : resolveProductImageSet(req);
   const slug = await ensureUniqueProductSlug(req.body.slug || req.body.name || 'product');
+  const { imageOrder: _imageOrder, ...productFields } = req.body;
 
-  const product = await Product.create({
-    ...req.body,
-    slug,
-    featured: req.body.featured === true || req.body.featured === 'true',
-    status: req.body.status || 'active',
-    image: nextImages[0]?.url || req.body.image || '',
-    imagePublicId: nextImages[0]?.public_id || req.body.imagePublicId || '',
-    images: nextImages,
-  });
+  let product;
+  try {
+    product = await Product.create({
+      ...productFields,
+      slug,
+      featured: req.body.featured === true || req.body.featured === 'true',
+      status: req.body.status || 'active',
+      image: nextImages[0]?.url || req.body.image || '',
+      imagePublicId: nextImages[0]?.public_id || req.body.imagePublicId || '',
+      images: nextImages,
+    });
+  } catch (error) {
+    await Promise.all(uploadedProductImages(req).map((image) => removeImage(image.public_id)));
+    throw error;
+  }
 
   res.status(201).json({ product });
 }));
@@ -109,28 +152,37 @@ router.put('/products/:id', validate(idParam, 'params'), uploadImage, validate(p
     const product = await Product.findById(req.params.id);
     if (!product) throw new AppError(404, 'Product not found.');
 
+    const previousImages = getProductImages(product);
     const uploadedImages = uploadedProductImages(req);
-    const nextImages = uploadedImages.length
-      ? uploadedImages
-      : resolveProductImageSet(req, product.images || []);
-    const previousImagePublicId = product.imagePublicId;
+    const nextImages = Array.isArray(req.body.imageOrder)
+      ? await resolveOrderedProductImages(req, previousImages)
+      : uploadedImages.length
+        ? uploadedImages
+        : resolveProductImageSet(req, previousImages);
     const nextSlug = await ensureUniqueProductSlug(req.body.slug || product.slug || product.name || 'product', product._id);
+    const { imageOrder: _imageOrder, ...productFields } = req.body;
     const productPayload = {
-      ...req.body,
+      ...productFields,
       slug: nextSlug,
       featured: req.body.featured === true || req.body.featured === 'true',
       status: req.body.status || product.status || 'active',
-      image: nextImages[0]?.url || req.body.image || product.image || '',
-      imagePublicId: nextImages[0]?.public_id || req.body.imagePublicId || product.imagePublicId || '',
+      image: nextImages[0]?.url || (Array.isArray(req.body.imageOrder) ? '' : req.body.image || product.image || ''),
+      imagePublicId: nextImages[0]?.public_id || (Array.isArray(req.body.imageOrder) ? '' : req.body.imagePublicId || product.imagePublicId || ''),
       images: nextImages,
     };
 
     Object.assign(product, productPayload);
-    if (uploadedImages.length && previousImagePublicId) {
-      await removeImage(previousImagePublicId);
+    try {
+      await product.save();
+    } catch (error) {
+      await Promise.all(uploadedImages.map((image) => removeImage(image.public_id)));
+      throw error;
     }
 
-    await product.save();
+    const retainedPublicIds = new Set(nextImages.map((image) => image.public_id).filter(Boolean));
+    const removedPublicIds = [...new Set(previousImages.map((image) => image.public_id).filter(Boolean))]
+      .filter((publicId) => !retainedPublicIds.has(publicId));
+    await Promise.all(removedPublicIds.map((publicId) => removeImage(publicId)));
     res.json({ product });
   })
 );
@@ -139,7 +191,7 @@ router.delete('/products/:id', validate(idParam, 'params'), asyncHandler(async (
   const product = await Product.findByIdAndDelete(req.params.id);
   if (!product) throw new AppError(404, 'Product not found.');
 
-  const cloudinaryTargets = [product.imagePublicId, ...(product.images || []).map((image) => image.public_id).filter(Boolean)];
+  const cloudinaryTargets = [...new Set([product.imagePublicId, ...(product.images || []).map((image) => image.public_id).filter(Boolean)].filter(Boolean))];
   await Promise.all([
     ...cloudinaryTargets.map((publicId) => removeImage(publicId)),
     Wishlist.deleteMany({ product: product._id }),

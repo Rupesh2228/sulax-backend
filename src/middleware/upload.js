@@ -37,9 +37,9 @@ const imageFilter = (_req, file, cb) => {
 
 export const uploadImage = multer({
   storage: productStorage,
-  limits: { fileSize: 3 * 1024 * 1024, files: 5 },
+  limits: { fileSize: 3 * 1024 * 1024, files: 3 },
   fileFilter: imageFilter,
-}).any();
+}).array('images', 3);
 
 export const uploadBanner = multer({
   storage: bannerStorage,

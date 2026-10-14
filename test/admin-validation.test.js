@@ -36,7 +36,7 @@ test('admin role schema accepts only supported roles', () => {
   assert.equal(userRoleSchema.safeParse({ role: 'owner' }).success, false);
 });
 
-test('product schema requires unique shoe sizes with prices and stock', () => {
+test('product schema validates per-size shoe inventory', () => {
   const product = {
     name: 'Runner',
     category: 'Running',
@@ -72,6 +72,89 @@ test('product schema requires unique shoe sizes with prices and stock', () => {
   assert.equal(productBodySchema.safeParse({
     ...product,
     sizes: JSON.stringify([{ size: '7', stock: 3 }]),
+  }).success, false);
+});
+
+test('product schema accepts category-specific shared-stock items with free-text sizes', () => {
+  const base = {
+    name: 'Sulax Tee',
+    price: '1200',
+    stock: '12',
+    description: 'A comfortable everyday T-shirt.',
+    sizes: '[]',
+  };
+  const shirt = productBodySchema.safeParse({
+    ...base,
+    category: 'T-shirts',
+    sizeOptions: 'S, M, L, XL, XXL',
+  });
+  assert.equal(shirt.success, true);
+  assert.equal(shirt.data.sizeOptions, 'S, M, L, XL, XXL');
+  assert.equal(productBodySchema.safeParse({
+    ...base,
+    category: 'Sari / Kurtha',
+    sizeOptions: 'Free Size, S, M, L, XL',
+  }).success, true);
+  assert.equal(productBodySchema.safeParse({
+    ...base,
+    category: 'T-shirts',
+    sizeOptions: '',
+  }).success, false);
+  assert.equal(productBodySchema.safeParse({
+    ...base,
+    category: 'T-shirts',
+    sizeOptions: 'M, m',
+  }).success, false);
+});
+
+test('product schema validates other specified categories without selectable size inventory', () => {
+  const base = {
+    name: 'Sample item',
+    price: '1500',
+    stock: '5',
+    description: 'A detailed product description.',
+    sizes: '[]',
+  };
+  for (const category of ['Dolls', 'Bag Packs', 'Electronic Accessories']) {
+    assert.equal(productBodySchema.safeParse({ ...base, category }).success, true, category);
+  }
+  assert.equal(productBodySchema.safeParse({
+    ...base,
+    category: 'Bag Packs',
+    bagType: 'School, Travel, Laptop',
+  }).success, true);
+  assert.equal(productBodySchema.safeParse({
+    ...base,
+    category: 'Dolls',
+    description: '',
+  }).success, false);
+  assert.equal(productBodySchema.safeParse({
+    ...base,
+    category: 'Dolls',
+    price: '',
+  }).success, false);
+});
+
+test('product schema enforces a maximum of three images and valid ordered image references', () => {
+  const product = {
+    name: 'Runner',
+    category: 'Running',
+    price: 2000,
+    sizes: JSON.stringify([{ size: '7', price: 2000, stock: 3 }]),
+  };
+  const images = JSON.stringify([
+    { url: 'https://res.cloudinary.com/example/one.jpg', public_id: 'one' },
+    { url: 'https://res.cloudinary.com/example/two.jpg', public_id: 'two' },
+    { url: 'https://res.cloudinary.com/example/three.jpg', public_id: 'three' },
+  ]);
+  assert.equal(productBodySchema.safeParse({ ...product, images }).success, true);
+  assert.equal(productBodySchema.safeParse({
+    ...product,
+    images: JSON.stringify([...JSON.parse(images), { url: 'https://res.cloudinary.com/example/four.jpg', public_id: 'four' }]),
+  }).success, false);
+  assert.equal(productBodySchema.safeParse({
+    ...product,
+    imageOrder: JSON.stringify([{ type: 'upload', index: 0 }, { type: 'upload', index: 0 }]),
   }).success, false);
 });
 
