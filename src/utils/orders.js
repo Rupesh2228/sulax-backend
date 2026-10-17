@@ -5,6 +5,11 @@ export function calculateOrderTotal(items, deliveryCharge) {
   return Math.round((itemsTotal + deliveryCharge) * 100) / 100;
 }
 
+export function setOrderStatus(order, status, deliveredAt = new Date()) {
+  order.status = status;
+  order.deliveredAt = status === 'Delivered' ? (order.deliveredAt || deliveredAt) : null;
+}
+
 export function getSizePrice(product, size) {
   const entry = (product?.sizes || []).find((item) => String(item.size) === String(size));
   return Number.isFinite(Number(entry?.price)) ? Number(entry.price) : Number(product?.price) || 0;

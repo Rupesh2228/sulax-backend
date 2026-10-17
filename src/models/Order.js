@@ -24,6 +24,7 @@ const orderSchema = new mongoose.Schema(
     deliveryCharge: { type: Number, required: true },
     totalAmount: { type: Number, required: true },
     status: { type: String, enum: ORDER_STATUSES, default: 'Pending', index: true },
+    deliveredAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

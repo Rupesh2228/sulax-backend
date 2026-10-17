@@ -19,7 +19,7 @@ import { adminActionLimiter } from '../middleware/rateLimit.js';
 import { destroyCloudinaryImage } from '../config/cloudinary.js';
 
 import { AppError, asyncHandler } from '../utils/helpers.js';
-import { calculateOrderTotal, restoreStock } from '../utils/orders.js';
+import { calculateOrderTotal, restoreStock, setOrderStatus } from '../utils/orders.js';
 import { LOW_STOCK_THRESHOLD } from '../utils/inventory.js';
 import { getIO } from '../socket.js';
 import AdminPushSubscription from '../models/AdminPushSubscription.js';
@@ -272,7 +272,7 @@ router.patch('/orders/:id/status', validate(idParam, 'params'), validate(statusS
     if (!order) throw new AppError(404, 'Order not found.');
     if (order.status === 'Cancelled') throw new AppError(400, 'A cancelled order cannot be changed.');
     const cancelling = req.body.status === 'Cancelled';
-    order.status = req.body.status;
+    setOrderStatus(order, req.body.status);
     await order.save();
     if (cancelling) await restoreStock(order);
     res.json({ order });
