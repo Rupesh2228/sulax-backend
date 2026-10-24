@@ -22,13 +22,16 @@ function notificationUrl(notification) {
 
 function safePushContent(notification) {
   if (notification.type === 'message') {
-    return { title: 'New customer message', body: 'A customer sent a support message.' };
+    return { title: notification.title, body: notification.message };
+  }
+  if (notification.type === 'login') {
+    return { title: 'Customer login', body: notification.message };
   }
   if (notification.type === 'registration') {
     return { title: 'New customer registered', body: 'A new customer account was created.' };
   }
   if (notification.type === 'order') {
-    return { title: notification.title, body: 'A new customer order was placed.' };
+    return { title: notification.title, body: notification.message };
   }
   if (notification.type === 'inventory') {
     return { title: 'Low stock alert', body: 'A product has reached the low-stock threshold.' };

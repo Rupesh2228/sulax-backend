@@ -9,7 +9,7 @@ import { loginLimiter, registerLimiter, googleAuthLimiter, passwordLimiter } fro
 import { requireAuth, issueToken, clearToken } from '../middleware/auth.js';
 import { AppError, asyncHandler } from '../utils/helpers.js';
 import { OAuth2Client } from 'google-auth-library';
-import { notifyAdminOfRegistration } from '../services/adminNotifications.js';
+import { notifyAdminOfCustomerLogin, notifyAdminOfRegistration } from '../services/adminNotifications.js';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '284274167517-j40sp4dqcd31qnhdom6lur8fc2gq7rk5.apps.googleusercontent.com';
 const client = new OAuth2Client(GOOGLE_CLIENT_ID);
@@ -64,6 +64,13 @@ router.post('/login', loginLimiter, validate(loginSchema), asyncHandler(async (r
     await user.save();
   }
   const token = issueToken(res, user);
+  if (user.role === 'user') {
+    try {
+      await notifyAdminOfCustomerLogin(user);
+    } catch (err) {
+      console.error('Customer logged in, but admin login notification could not be saved:', err);
+    }
+  }
   res.json({ user: user.toSafeJSON(), token });
 }));
 
@@ -118,6 +125,13 @@ router.post('/google', googleAuthLimiter, validate(googleAuthSchema), asyncHandl
   }
 
   const token = issueToken(res, user);
+  if (user.role === 'user') {
+    try {
+      await notifyAdminOfCustomerLogin(user);
+    } catch (err) {
+      console.error('Google customer logged in, but admin login notification could not be saved:', err);
+    }
+  }
   res.json({ user: user.toSafeJSON(), token });
 }));
 

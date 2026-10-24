@@ -23,6 +23,18 @@ Quick fix checklist
 
    If the admin login returns "Invalid email or password", the login uses the account stored in MongoDB; it does not authenticate directly against these environment variables. Run `npm run seed` against the same MongoDB database configured by the Render service to create or synchronize the admin account. For a production database, use the Render Shell if available, or run the command from a trusted machine with the production `MONGO_URI` configured securely. The seed command also inserts sample products if the database has none. Synchronizing an existing account sets its role to admin, updates its password when needed, and invalidates its existing sessions.
 
+### Browser push notifications
+
+When all three VAPID variables are configured, an administrator can enable desktop
+notifications from the notification bell in the admin dashboard. The browser stores
+the subscription with the backend, and the backend sends order, customer-login, and
+customer-message events through the browser's push service even when the dashboard is
+closed. Invalid or expired subscriptions are removed automatically.
+
+Actual display depends on browser and operating-system support, notification permission,
+device connectivity, and background-notification settings. A powered-off or offline
+device may receive the event later, and the server cannot guarantee immediate display.
+
 3. Node version and build command
    - Set the Node version to at least 18 (match package.json engines if present). In Render service settings, set "Environment" -> "Runtime" -> Node version.
    - Build command: npm install (or the build command your repo expects). Start command should point to the server entry (handled by package.json scripts).

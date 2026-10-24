@@ -62,13 +62,27 @@ export async function notifyAdminOfRegistration(user) {
 }
 
 export async function notifyAdminOfOrder(order) {
+  const itemSummary = order.items
+    .map((item) => `${item.productName} x${item.quantity}`)
+    .join(', ');
   return createAdminNotification({
     type: 'order',
     title: `New order #${order._id.toString().slice(-8).toUpperCase()}`,
-    message: `${order.customerName} placed an order for Rs. ${order.totalAmount.toFixed(2)}.`,
+    message: `${order.customerName} placed order #${order._id.toString().slice(-8).toUpperCase()}: ${itemSummary}. Total Rs. ${Number(order.totalAmount).toFixed(2)} at ${new Date(order.createdAt || Date.now()).toLocaleString()}.`,
     eventKey: `order:${order._id}`,
     relatedOrderId: order._id,
     relatedUserId: order.user,
+  });
+}
+
+export async function notifyAdminOfCustomerLogin(user) {
+  const loginTime = new Date().toLocaleString();
+  return createAdminNotification({
+    type: 'login',
+    title: 'Customer login',
+    message: `${user.name || user.email} signed in at ${loginTime}.`,
+    eventKey: `login:${user._id}:${Date.now()}`,
+    relatedUserId: user._id,
   });
 }
 
@@ -84,11 +98,12 @@ export async function notifyAdminOfLowStock(order, product, remainingStock) {
 }
 
 export async function notifyAdminOfCustomerMessage(message, conversation, customerName) {
-  const preview = message.text.length > 140 ? `${message.text.slice(0, 137)}...` : message.text;
+  const preview = message.text.replace(/\s+/g, ' ').trim();
+  const safePreview = preview.length > 140 ? `${preview.slice(0, 137)}...` : preview;
   return createAdminNotification({
     type: 'message',
     title: `New message from ${customerName}`,
-    message: preview,
+    message: `${customerName}: ${safePreview}`,
     eventKey: `message:${message._id}`,
     relatedMessageId: message._id,
     relatedConversationId: conversation._id,

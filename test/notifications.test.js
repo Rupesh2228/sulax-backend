@@ -21,6 +21,12 @@ test('notification schema rejects unsupported event types', async () => {
   await assert.rejects(notification.validate(), /is not a valid enum value/);
 });
 
+test('notification schema accepts customer login events', async () => {
+  const notification = validNotification();
+  notification.type = 'login';
+  await assert.doesNotReject(notification.validate());
+});
+
 test('notification idempotency index is unique per admin and event key', () => {
   const uniqueEventIndex = Notification.schema.indexes().find(([keys, options]) =>
     keys.recipientId === 1 && keys.eventKey === 1 && options.unique === true
