@@ -221,10 +221,6 @@ export const seoPageParam = z.object({
   page: z.enum(['home', 'product']),
 });
 
-export const seoProductPageParam = z.object({
-  page: z.literal('product'),
-});
-
 export const seoBodySchema = z.object({
   pageName: z.string().trim().min(1).max(100).optional(),
   metaTitle: z.string().trim().min(1, 'Meta title is required.').max(150),
@@ -232,6 +228,15 @@ export const seoBodySchema = z.object({
   h1: z.string().trim().max(200).optional().default(''),
   description: z.string().trim().max(5000).optional().default(''),
   faq: z.string().trim().max(5000).optional().default(''),
+  schemaJson: z.string().trim().max(10000).optional().default('').refine((value) => {
+    if (!value) return true;
+    try {
+      JSON.parse(value);
+      return true;
+    } catch {
+      return false;
+    }
+  }, 'Structured data must be valid JSON.'),
 });
 
 const browserPushEndpoint = z.string().url().max(2048).refine((value) => {

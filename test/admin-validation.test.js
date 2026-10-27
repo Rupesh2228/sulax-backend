@@ -187,6 +187,7 @@ test('SEO schema accepts only the requested content fields', () => {
     h1: 'Sulax Shoes',
     description: 'Original product content',
     faq: 'Sizing: See the size guide.',
+    schemaJson: '{"@context":"https://schema.org","@type":"Product"}',
   });
   assert.equal(valid.success, true);
   assert.equal(seoBodySchema.safeParse({
@@ -200,6 +201,12 @@ test('SEO schema accepts only the requested content fields', () => {
     metaDescription: 'A'.repeat(140),
     canonicalUrl: 'https://sulax.example/',
   }).data.canonicalUrl, undefined);
+  assert.equal(seoBodySchema.safeParse({
+    pageName: 'Home',
+    metaTitle: 'Sulax Shoes',
+    metaDescription: 'A'.repeat(140),
+    schemaJson: '{invalid}',
+  }).success, false);
 });
 
 test('SEO page parameter only accepts supported pages', () => {
@@ -208,6 +215,19 @@ test('SEO page parameter only accepts supported pages', () => {
   assert.equal(seoPageParam.safeParse({ page: 'category' }).success, false);
   assert.equal(seoPageParam.safeParse({ page: 'contact' }).success, false);
   assert.equal(seoPageParam.safeParse({ page: 'internal-admin' }).success, false);
+});
+
+test('SEO body supports saving home and product structured data', () => {
+  const result = seoBodySchema.safeParse({
+    pageName: 'Home SEO',
+    metaTitle: 'Sulax Shoes Home',
+    metaDescription: 'Shop premium footwear at Sulax Shoes Nepal with trusted quality, great value, and cash on delivery across Nepal. Browse our collection today.',
+    h1: 'Sulax Shoes Collection',
+    description: 'Explore comfortable and stylish footwear for everyday life, work, travel, and special occasions.',
+    faq: 'Delivery: Cash on delivery is available across Nepal.',
+    schemaJson: '{"@context":"https://schema.org","@type":"WebSite"}',
+  });
+  assert.equal(result.success, true);
 });
 
 test('banner schema accepts safe internal or HTTP links and rejects script URLs', () => {

@@ -9,6 +9,7 @@ const seoSchema = new mongoose.Schema(
     h1: { type: String, default: '', trim: true, maxlength: 200 },
     description: { type: String, default: '', trim: true, maxlength: 5000 },
     faq: { type: String, default: '', trim: true, maxlength: 5000 },
+    schemaJson: { type: String, default: '', trim: true, maxlength: 10000 },
   },
   { timestamps: true }
 );
