@@ -218,32 +218,16 @@ const optionalHttpUrl = z.string().trim().max(500).refine(
 ).optional().default('');
 
 export const seoPageParam = z.object({
-  page: z.enum(['home', 'products', 'product_details', 'contact', 'cart', 'checkout', 'account', 'wishlist']),
+  page: z.enum(['home', 'category', 'product']),
 });
 
 export const seoBodySchema = z.object({
   pageName: z.string().trim().min(1).max(100).optional(),
   metaTitle: z.string().trim().min(1, 'Meta title is required.').max(150),
-  metaDescription: z.string().trim().max(500).optional().default(''),
-  metaKeywords: z.string().trim().max(500).optional().default(''),
-  canonicalUrl: optionalHttpUrl,
-  robots: z.enum(['index, follow', 'noindex, follow', 'noindex, nofollow', 'index, nofollow'])
-    .optional().default('index, follow'),
-  ogTitle: z.string().trim().max(150).optional().default(''),
-  ogDescription: z.string().trim().max(500).optional().default(''),
-  ogImage: optionalHttpUrl,
-  twitterCard: z.enum(['summary', 'summary_large_image']).optional().default('summary_large_image'),
-  schemaJson: z.string().trim().max(10000).optional().default('')
-    .refine((value) => {
-      if (!value) return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch {
-        return false;
-      }
-    }, 'Structured data must be valid JSON.'),
-  focusKeyword: z.string().trim().max(100).optional().default(''),
+  metaDescription: z.string().trim().min(140).max(160, 'Meta description must be 140-160 characters.'),
+  h1: z.string().trim().max(200).optional().default(''),
+  description: z.string().trim().max(5000).optional().default(''),
+  faq: z.string().trim().max(5000).optional().default(''),
 });
 
 const browserPushEndpoint = z.string().url().max(2048).refine((value) => {

@@ -437,7 +437,7 @@ router.patch('/messages/:id/read', validate(idParam, 'params'), asyncHandler(asy
 
 // ---- SEO Settings ----
 router.get('/seo', asyncHandler(async (_req, res) => {
-  const seo = await SEO.find().sort({ createdAt: 1 });
+  const seo = await SEO.find({ page: { $in: ['home', 'category', 'product'] } }).sort({ createdAt: 1 });
   res.json({ seo });
 }));
 

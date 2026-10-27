@@ -91,6 +91,8 @@ test('2. Input validation schemas validate query parameters and bodies', () => {
 
   // SEO Page Param Schema
   assert.equal(seoPageParam.safeParse({ page: 'home' }).success, true);
+  assert.equal(seoPageParam.safeParse({ page: 'category' }).success, true);
+  assert.equal(seoPageParam.safeParse({ page: 'product' }).success, true);
   assert.equal(seoPageParam.safeParse({ page: 'unsupported' }).success, false);
 });
 

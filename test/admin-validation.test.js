@@ -179,34 +179,34 @@ test('admin order-item route validates the order ID and nonnegative item index',
   assert.equal(orderItemParam.safeParse({ id: '507f1f77bcf86cd799439011', index: '-1' }).success, false);
 });
 
-test('SEO schema validates URLs, robots directives, and JSON-LD', () => {
+test('SEO schema accepts only the requested content fields', () => {
   const valid = seoBodySchema.safeParse({
     pageName: 'Home',
     metaTitle: 'Sulax Shoes',
-    canonicalUrl: 'https://sulax.example/',
-    ogImage: '',
-    schemaJson: '{"@type":"WebSite"}',
+    metaDescription: 'A'.repeat(140),
+    h1: 'Sulax Shoes',
+    description: 'Original product content',
+    faq: 'Sizing: See the size guide.',
   });
   assert.equal(valid.success, true);
   assert.equal(seoBodySchema.safeParse({
     pageName: 'Home',
     metaTitle: 'Sulax Shoes',
-    canonicalUrl: 'javascript:alert(1)',
+    metaDescription: 'Too short',
   }).success, false);
   assert.equal(seoBodySchema.safeParse({
     pageName: 'Home',
     metaTitle: 'Sulax Shoes',
-    schemaJson: '{invalid}',
-  }).success, false);
-  assert.equal(seoBodySchema.safeParse({
-    pageName: 'Home',
-    metaTitle: 'Sulax Shoes',
-    robots: 'maybe',
-  }).success, false);
+    metaDescription: 'A'.repeat(140),
+    canonicalUrl: 'https://sulax.example/',
+  }).data.canonicalUrl, undefined);
 });
 
 test('SEO page parameter only accepts supported pages', () => {
   assert.equal(seoPageParam.safeParse({ page: 'home' }).success, true);
+  assert.equal(seoPageParam.safeParse({ page: 'category' }).success, true);
+  assert.equal(seoPageParam.safeParse({ page: 'product' }).success, true);
+  assert.equal(seoPageParam.safeParse({ page: 'contact' }).success, false);
   assert.equal(seoPageParam.safeParse({ page: 'internal-admin' }).success, false);
 });
 
