@@ -218,7 +218,11 @@ const optionalHttpUrl = z.string().trim().max(500).refine(
 ).optional().default('');
 
 export const seoPageParam = z.object({
-  page: z.enum(['home', 'category', 'product']),
+  page: z.enum(['home', 'product']),
+});
+
+export const seoProductPageParam = z.object({
+  page: z.literal('product'),
 });
 
 export const seoBodySchema = z.object({

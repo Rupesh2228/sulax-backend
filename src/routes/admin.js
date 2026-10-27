@@ -11,7 +11,7 @@ import Banner from '../models/Banner.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import {
-  adminUserUpdateSchema, bannerBodySchema, bannerStatusSchema, idParam, orderItemParam, productBodySchema, seoBodySchema, seoPageParam,
+  adminUserUpdateSchema, bannerBodySchema, bannerStatusSchema, idParam, orderItemParam, productBodySchema, seoBodySchema, seoProductPageParam,
   statusSchema, userRoleSchema,
 } from '../middleware/schemas.js';
 import { uploadBanner, uploadImage } from '../middleware/upload.js';
@@ -437,11 +437,11 @@ router.patch('/messages/:id/read', validate(idParam, 'params'), asyncHandler(asy
 
 // ---- SEO Settings ----
 router.get('/seo', asyncHandler(async (_req, res) => {
-  const seo = await SEO.find({ page: { $in: ['home', 'category', 'product'] } }).sort({ createdAt: 1 });
+  const seo = await SEO.find({ page: 'product' }).sort({ createdAt: 1 });
   res.json({ seo });
 }));
 
-router.put('/seo/:page', validate(seoPageParam, 'params'), validate(seoBodySchema), asyncHandler(async (req, res) => {
+router.put('/seo/:page', validate(seoProductPageParam, 'params'), validate(seoBodySchema), asyncHandler(async (req, res) => {
   const page = req.params.page.toLowerCase();
   const updated = await SEO.findOneAndUpdate(
     { page },

@@ -204,8 +204,8 @@ test('SEO schema accepts only the requested content fields', () => {
 
 test('SEO page parameter only accepts supported pages', () => {
   assert.equal(seoPageParam.safeParse({ page: 'home' }).success, true);
-  assert.equal(seoPageParam.safeParse({ page: 'category' }).success, true);
   assert.equal(seoPageParam.safeParse({ page: 'product' }).success, true);
+  assert.equal(seoPageParam.safeParse({ page: 'category' }).success, false);
   assert.equal(seoPageParam.safeParse({ page: 'contact' }).success, false);
   assert.equal(seoPageParam.safeParse({ page: 'internal-admin' }).success, false);
 });
